@@ -5,12 +5,18 @@
         "dev": "deno run --watch main.ts"
     },
     "fmt": {
-        "indentWidth": 4
+        "indentWidth": 4,
+        "exclude": [
+            ".github/*"
+        ]
     },
     "test": {
         "exclude": [
             "./edu/*"
         ]
+    },
+    "lint": {
+        "exclude": ["./edu/*"]
     },
     "imports": {
         "@std/assert": "jsr:@std/assert@1"

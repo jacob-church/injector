@@ -28,11 +28,11 @@ Deno.test("v2", () => {
     class A {
         constructor(public readonly id: string) {}
     }
-    class B {}
+    // class B {}
 
     // VALUE
     const value = new A("value");
-    const b = new B();
+    // const b = new B();
     const valueInjector = newInjector([
         provide(A).use(() => value),
         // provide(A).use(() => b) <<<< produces expected type error
