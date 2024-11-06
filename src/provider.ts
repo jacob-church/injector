@@ -1,5 +1,5 @@
-import { inject } from "./inject.ts";
 import type { InjectKey } from "./injectkey.ts";
+import { inject } from "./injector.ts";
 import type { Provide } from "./provide.ts";
 
 class Provider<T> {
