@@ -1,6 +1,6 @@
 {
     "name": "@cjc/injector",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "tasks": {
         "dev": "deno run --watch main.ts"
     },
@@ -11,7 +11,13 @@
         "@std/assert": "jsr:@std/assert@1"
     },
     "publish": {
-        "exclude": ["./edu", "./src/test/*"]
+        "include": [
+            "LICENSE",
+            "README.md",
+            "./src/**/*.ts",
+            "./index.ts"
+        ],
+        "exclude": ["./edu", "./src/test/*", "./src/dfs/test.ts"]
     },
     "exports": "./index.ts"
 }

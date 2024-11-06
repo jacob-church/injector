@@ -242,6 +242,6 @@ export function inject<T>(key: InjectKey<T>): T {
 /**
  * Setup an injector
  */
-export function newInjector(provides?: Provide[], parent?: Injector) {
+export function newInjector(provides?: Provide[], parent?: Injector): Injector {
     return new Injector(provides, parent);
 }
