@@ -18,18 +18,18 @@ type Structor<T> = new () => T;
 type InjectKey<T = unknown> = ProvideKey<T> | Structor<T>;
 
 interface Provide<T = unknown> {
-    key: InjectKey<T>,
-    factory: () => T,
+    key: InjectKey<T>;
+    factory: () => T;
 }
 
 class Provider<T> {
-    constructor(private readonly key: InjectKey<T>) {};
-    
+    constructor(private readonly key: InjectKey<T>) {}
+
     public use(factory: () => T): Provide<T> {
         return {
             key: this.key,
             factory,
-        }
+        };
     }
     // value    {key: K, factory: () => <instance of K>}
     // factory  {key: K, factory: () => new K()}
@@ -39,69 +39,81 @@ export function provide<T>(key: InjectKey<T>): Provider<T> {
     return new Provider(key);
 }
 
-type Entry<T = unknown> = Provide<T> & {
-    explicit?: true;
-    built?: true; // I won't need this later, but its quick and dirty now
+type Provided<T = unknown> = Provide<T> & {
+    explicitly?: true;
     value?: T;
+    built?: true;
+};
+type Built<T = unknown> = Provided<T> & {
+    value: T;
+    built: true;
+};
+function isBuilt<T>(provide: Provided<T>): provide is Built<T> {
+    return typeof provide.built !== "undefined";
 }
 
 class Injector {
-    private entries = new Map<InjectKey, Entry>();
+    private provides = new Map<InjectKey, Provided>();
 
-    constructor(provides?: Provide[], private readonly parent?: Injector) {
-        for (const provide of provides ?? []) {
-            this.entries.set(provide.key, {...provide, explicit: true});
-        } 
+    constructor(provides: Provide[] = [], private parent?: Injector) {
+        for (const provide of provides) {
+            this.provides.set(provide.key, {
+                ...provide,
+                explicitly: true,
+            });
+        }
     }
 
     public get<T>(key: InjectKey<T>): T {
-        const prevInjector = currentInjector;
-        currentInjector = this;
+        const prevInjector = activeInjector;
+        activeInjector = this;
         try {
-            return this.getInternal(key);
+            return this.getInContext(key);
         } finally {
-            currentInjector = prevInjector;
+            activeInjector = prevInjector;
         }
     }
 
-    public getInternal<T>(key: InjectKey<T>): T {
-        const {entry, injector} = this.getOwnedEntry(key);
-        if (!entry.built) {
-            entry.value = entry.factory();
-            entry.built = true;
-            this.storeSettledEntry(entry, injector);
-        }
-        return entry.value as T;
+    private getInContext<T>(key: InjectKey<T>): T {
+        const provide = this.getOrBuild(key);
+        return provide.value as T;
     }
 
-    private getOwnedEntry<T>(key: InjectKey<T>): {entry: Entry, injector: Injector} {
-        const entry = this.entries.get(key);
-        if (entry) {
-            return {entry, injector: this};
+    private getOrBuild<T>(key: InjectKey<T>): Built<T> {
+        const provide = this.getProvide(key);
+        if (isBuilt(provide)) {
+            return provide;
         }
-        if (!this.parent) {
-            return {
-                entry: {key, factory: () => new (key as Structor<T>)()},
-                injector: this,
-            }
-        }
-        return this.parent.getOwnedEntry(key);
+        provide.value = provide.factory();
+        this.provides.set(provide.key, provide);
+        return provide as Built<T>;
     }
 
-    private storeSettledEntry(entry: Entry, owningInjector: Injector) {
-        owningInjector.entries.set(entry.key, entry);
+    private getProvide<T>(
+        key: InjectKey<T>,
+    ): Provided<T> {
+        const provide = this.provides.get(key);
+        if (provide) {
+            return provide as Provided<T>;
+        }
+        if (this.parent) {
+            return this.parent.getProvide(key);
+        }
+        return {
+            key,
+            factory: () => new (key as Structor<T>)(),
+        };
     }
 }
 
-let currentInjector: Injector | undefined = new Injector();
+let activeInjector: Injector | undefined = undefined;
 export function inject<T>(key: InjectKey<T>): T {
-    if (!currentInjector) {
-        throw Error('No active injector');
+    if (!activeInjector) {
+        throw new Error();
     }
-    return currentInjector.get(key);
+    return activeInjector.get(key);
 }
 
 export function newInjector(provides?: Provide[], parent?: Injector) {
     return new Injector(provides, parent);
 }
-
