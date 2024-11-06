@@ -40,6 +40,7 @@ export function provide<T>(key: InjectKey<T>): Provider<T> {
 }
 
 type Provided<T = unknown> = Provide<T> & {
+    holder: Injector;
     explicitly?: true;
     value?: T;
     built?: true;
@@ -59,6 +60,7 @@ class Injector {
         for (const provide of provides) {
             this.provides.set(provide.key, {
                 ...provide,
+                holder: this,
                 explicitly: true,
             });
         }
@@ -85,7 +87,8 @@ class Injector {
             return provide;
         }
         provide.value = provide.factory();
-        this.provides.set(provide.key, provide);
+        provide.built = true;
+        provide.holder.provides.set(provide.key, provide);
         return provide as Built<T>;
     }
 
@@ -102,6 +105,7 @@ class Injector {
         return {
             key,
             factory: () => new (key as Structor<T>)(),
+            holder: this,
         };
     }
 }

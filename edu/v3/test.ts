@@ -5,9 +5,11 @@ function assert(expression: boolean) {
     }
 }
 
-Deno.test('v3', () => {
+Deno.test("v3", () => {
     class B {}
-    class A {public readonly b = inject(B)}
+    class A {
+        public readonly b = inject(B);
+    }
 
     const p = newInjector([]);
     const c = newInjector([provide(A).use(() => new A())], p);
