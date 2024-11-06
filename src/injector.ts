@@ -74,7 +74,7 @@ class Injector {
      * The actual `get` implementation; assumes an active injection context
      */
     private getInContext<T>(key: InjectKey<T>): T {
-        const built = this.cache.get(key) ?? this.getBuiltProvide(key);
+        const built = this.cache.get(key) ?? this.getOrBuild(key);
         if (Injector.buildingProvide) {
             // whenever a key is requested, its essential to tie the dependency
             // to a higher stack frame if there is one, for correct homing of entries
@@ -90,7 +90,7 @@ class Injector {
      * Fetches the most relevant provide and ensures it is ready to serve
      * (Assumes this key is not cached)
      */
-    private getBuiltProvide<T>(key: InjectKey<T>): Built<T> {
+    private getOrBuild<T>(key: InjectKey<T>): Built<T> {
         const provide = this.getProvide(key);
         if (
             isBuilt(provide) &&
@@ -99,7 +99,7 @@ class Injector {
             this.cacheProvide(provide);
             return provide;
         }
-        return this.buildAndCache(provide);
+        return this.buildAndStore(provide);
     }
 
     /**
@@ -156,15 +156,12 @@ class Injector {
                 return [];
             }
 
-            const highest = this.getProvide(
-                dep.key,
-                holder,
-            );
-            if (highest?.explicitly && !isBuilt(highest)) {
-                this._buildStack([highest, prev]);
+            const highestProvide = this.getProvide(dep.key, holder);
+            if (highestProvide?.explicitly && !isBuilt(highestProvide)) {
+                this._buildStack([highestProvide, prev]);
             }
-            if (highest) {
-                holder = holder.maxRank(highest.holder);
+            if (highestProvide) {
+                holder = holder.maxRank(highestProvide.holder);
             }
             if (holder == this) {
                 // finalInjector can't get any higher, so get it over with
@@ -192,14 +189,14 @@ class Injector {
         if (this.cache.has(provide.key)) {
             return;
         }
-        this.buildAndCache(provide);
+        this.buildAndStore(provide);
         this._buildStack(prev);
     }
 
     /**
      * Given a Provided, takes the necessary steps to finalize that provide and cache it appropriately
      */
-    private buildAndCache<T>(provide: Provided<T>): Built<T> {
+    private buildAndStore<T>(provide: Provided<T>): Built<T> {
         const built = { ...provide, deps: [] } as Built<T>;
         const prevBuildingProvide = Injector.buildingProvide;
         Injector.buildingProvide = built;
