@@ -9,16 +9,16 @@ export type Frame<T> = [T, Frame<T> | undefined];
  *  if desired to short circuit the whole DFS
  */
 export function dfs<T>(
-  roots: T[],
-  next: (node: T, frame: Frame<T>) => T[] | "stop",
+    roots: T[],
+    next: (node: T, frame: Frame<T>) => T[] | "stop",
 ) {
-  const stack: Frame<T>[] = roots.map((r) => [r, undefined]);
-  while (stack.length) {
-    const frame = stack.pop()!;
-    const children = next(frame[0], frame);
-    if (children === "stop") {
-      break;
+    const stack: Frame<T>[] = roots.map((r) => [r, undefined]);
+    while (stack.length) {
+        const frame = stack.pop()!;
+        const children = next(frame[0], frame);
+        if (children === "stop") {
+            break;
+        }
+        stack.push(...children.map((c) => [c, frame]) as Frame<T>[]);
     }
-    stack.push(...children.map((c) => [c, frame]) as Frame<T>[]);
-  }
 }

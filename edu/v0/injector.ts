@@ -9,16 +9,16 @@
 
 let activeInjector: Injector | undefined = undefined;
 export function inject<T>(key: InjectKey<T>): T {
-  // TODO
-  return undefined as T;
+    // TODO
+    return undefined as T;
 }
 
 type InjectKey<T = unknown> = Structor<T>;
 type Structor<T> = new () => T;
 
 class Injector {
-  public get<T>(key: InjectKey<T>): T {
-    // TODO
-    return undefined as T;
-  }
+    public get<T>(key: InjectKey<T>): T {
+        // TODO
+        return undefined as T;
+    }
 }

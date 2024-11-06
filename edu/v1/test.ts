@@ -6,11 +6,19 @@ function assert(expression: boolean) {
     }
 }
 
-Deno.test('v1', () => {
+Deno.test("v1", () => {
     let count = 0;
-    class A { constructor() {count += 1}}
-    class B1 {private a = inject(A); }
-    class B2 {private a = inject(A); }
+    class A {
+        constructor() {
+            count += 1;
+        }
+    }
+    class B1 {
+        private a = inject(A);
+    }
+    class B2 {
+        private a = inject(A);
+    }
 
     const injector = newInjector();
     injector.get(B1);

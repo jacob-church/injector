@@ -7,7 +7,7 @@ interrelated provides from injectors throughout the hierarchy
 
 */
 
-import { dfs } from "../../dfs/dfs/dfs.ts";
+import { dfs } from "../../src/dfs/dfs.ts";
 
 class ProvideKey<T> {
     constructor(public readonly name: string) {}
