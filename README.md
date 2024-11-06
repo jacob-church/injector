@@ -1,14 +1,30 @@
-# WIP
+# (WIP)
 
-This is a TypeScript dependency injector built up in stages.
+A TypeScript dependency injector, written with Deno.
 
-Every version has an exported `inject` function.
+## Usage
 
-- `v1` is just cached singletons
-- `v2` adds providers and overrides
-- `v3` adds parentage (with limitations)
-- `v4` resolves the limitations of `v3`
-- `v5` significantly improves the performance of v4
+A new injector can be generated with the `newInjector` function.
 
-TODO: error handling, cycle detection, useExistingFactory, injectOptional,
-injectOrThrow, getInjectionContext, namespacing?
+```
+const injector = newInjector();
+```
+
+Once you have an injector object, you can request new objects with `.get`
+
+```
+const a = injector.get(A);
+```
+
+To make a class "injectable", it only needs to follow two requirements:
+
+1. It should not have any constructor arguments
+2. Any dependencies should be injected with the `inject` function:
+
+```
+class A {
+  public readonly b = inject(B);
+}
+```
+
+(under construction)
