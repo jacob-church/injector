@@ -2,7 +2,7 @@
 v2
 
 A "real" injector.
-This version allows us to substitute things for other things 
+This version allows us to substitute things for other things
 e.g. mock classes
 
 */
@@ -18,20 +18,20 @@ type Structor<T> = new () => T;
 type InjectKey<T = unknown> = ProvideKey<T> | Structor<T>;
 
 interface Provide<T = unknown> {
-    key: InjectKey<T>,
-    factory: () => T,
+    key: InjectKey<T>;
+    factory: () => T;
 }
 
 class Provider<T> {
-    constructor(private readonly key: InjectKey<T>) {};
-    
+    constructor(private readonly key: InjectKey<T>) {}
+
     public use(factory: () => T): Provide<T> {
         return {
             key: this.key,
             factory,
-        }
+        };
     }
-    // value    {key: K, factory: () => <instance of type K>}
+    // value    {key: K, factory: () => <instance of K>}
     // factory  {key: K, factory: () => new K()}
     // existing {key: K, factory: () => inject(K_)}
 }
@@ -39,54 +39,63 @@ export function provide<T>(key: InjectKey<T>): Provider<T> {
     return new Provider(key);
 }
 
-type Entry<T = unknown> = Provide<T> & {
-    explicit?: true;
-    built?: true; // won't need this later, but its quick and dirty now
+type Provided<T = unknown> = Provide<T> & {
+    explicitly?: true;
     value?: T;
+    built?: true;
+};
+type Built<T = unknown> = Provided<T> & {
+    value: T;
+    built: true;
+};
+function isBuilt<T>(provide: Provided<T>): provide is Built<T> {
+    return typeof provide.built !== "undefined";
 }
 
 class Injector {
-    private entries = new Map<InjectKey, Entry>();
+    private provides = new Map<InjectKey, Provided>();
 
-    constructor(provides?: Provide[]) {
-        for (const provide of provides ?? []) {
-            this.entries.set(provide.key, {...provide, explicit: true});
-        } 
+    constructor(provides: Provide[] = [], private parent?: Injector) {
+        for (const provide of provides) {
+            this.provides.set(provide.key, {
+                ...provide,
+                explicitly: true,
+            });
+        }
     }
 
     public get<T>(key: InjectKey<T>): T {
-        const prevInjector = currentInjector;
-        currentInjector = this;
+        const prevInjector = activeInjector;
+        activeInjector = this;
         try {
-            return this.getInternal(key);
+            return this.getInContext(key);
         } finally {
-            currentInjector = prevInjector;
+            activeInjector = prevInjector;
         }
     }
 
-    public getInternal<T>(key: InjectKey<T>): T {
-        const entry = this.entries.get(key) ?? {
+    private getInContext<T>(key: InjectKey<T>): T {
+        const provide = this.provides.get(key) as Provided<T> ?? {
             key,
             factory: () => new (key as Structor<T>)(),
+        };
+        if (isBuilt(provide)) {
+            return provide.value;
         }
-        if (!entry.built) {
-            entry.value = entry.factory();
-            entry.built = true;
-            this.entries.set(key, entry);
-        }
-        return entry.value as T;
+        provide.value = provide.factory();
+        this.provides.set(provide.key, provide);
+        return provide.value as T;
     }
 }
 
-let currentInjector: Injector | undefined = new Injector();
+let activeInjector: Injector | undefined = undefined;
 export function inject<T>(key: InjectKey<T>): T {
-    if (!currentInjector) {
-        throw Error('No active injector');
+    if (!activeInjector) {
+        throw new Error();
     }
-    return currentInjector.get(key);
+    return activeInjector.get(key);
 }
 
-export function newInjector(provides?: Provide[]) {
-    return new Injector(provides);
+export function newInjector(provides?: Provide[], parent?: Injector) {
+    return new Injector(provides, parent);
 }
-
