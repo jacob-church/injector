@@ -233,7 +233,10 @@ class Injector {
 
 /**
  * When used within an active injection context (under a `.get` on a real injector)
- * @returns a singleton of type T from the active injection context
+ * returns a singleton of type T from the active injection context
+ *
+ * @param key an injectable type (class type or `ProvideKey`)
+ * @returns a singleton of type `T`
  */
 export function inject<T>(key: InjectKey<T>): T {
     return Injector.inject(key);
@@ -241,6 +244,12 @@ export function inject<T>(key: InjectKey<T>): T {
 
 /**
  * Setup an injector
+ *
+ * @param provides (optional) a list of `Provide`
+ * @param parent (optional) another injector to defer to when this injector is
+ * not specifically configured to handle a requested type
+ *
+ * @returns a configured Injector
  */
 export function newInjector(provides?: Provide[], parent?: Injector): Injector {
     return new Injector(provides, parent);

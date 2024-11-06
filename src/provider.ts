@@ -2,24 +2,37 @@ import type { InjectKey } from "./injectkey.ts";
 import { inject } from "./injector.ts";
 import type { Provide } from "./provide.ts";
 
-class Provider<T> {
+export class Provider<T> {
     constructor(private readonly key: InjectKey<T>) {}
 
+    /**
+     * General purpose function
+     */
     public use(factory: () => T): Provide<T> {
         return {
             key: this.key,
             factory,
         };
     }
+    /**
+     * For providing an already constructed object, primitive value, or optional
+     * value (not yet implemented)
+     */
     public useValue(value: T): Provide<T> {
         return {
             key: this.key,
             factory: () => value,
         };
     }
+    /**
+     * Functionally equivalent to `.use`, semantically clearer
+     */
     public useFactory(factory: () => T): Provide<T> {
         return this.use(factory);
     }
+    /**
+     * Re-keys to a secondary key (e.g. A -> MockA)
+     */
     public useExisting(key: InjectKey<T>): Provide<T> {
         return {
             key: this.key,
@@ -43,6 +56,26 @@ class Provider<T> {
     }
 }
 
+/**
+ * Quality of life function for generating `Provide` objects to configure an
+ * injector.
+ *
+ * @param key an injectable type `T` or `ProvideKey<T>`
+ * @returns `Provider<T>`
+ *
+ * Usage:
+ * ```
+ * // default
+ * provide(A).use(() => new A());
+ * // factory (same as default)
+ * provide(A).useFactory(() => new A());
+ * // value
+ * const a = new A();
+ * provide(A).useValue(a);
+ * // re-key (type substitutions)
+ * provide(A).useExisting(MockA)
+ * ```
+ */
 export function provide<T>(key: InjectKey<T>): Provider<T> {
     return new Provider(key);
 }
