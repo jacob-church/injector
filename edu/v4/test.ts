@@ -1,4 +1,4 @@
-import { inject, key, newInjector, provide } from "../v4/injector.ts";
+import { inject, key, newInjector, provide } from "./injector.ts";
 
 function assert(expression: boolean) {
     if (!expression) {
@@ -6,15 +6,19 @@ function assert(expression: boolean) {
     }
 }
 
-Deno.test('v4', () => {
+Deno.test("v4", () => {
     class C {}
     class C_ extends C {}
-    class B {public readonly c = inject(C)}
-    class B_ extends B{}
-    class A {public readonly b = inject(B)}
-    class A_ extends A{}
-    const PK1 = key<number>('PK1');
-    const PK2 = key<number>('PK2');
+    class B {
+        public readonly c = inject(C);
+    }
+    class B_ extends B {}
+    class A {
+        public readonly b = inject(B);
+    }
+    class A_ extends A {}
+    const PK1 = key<number>("PK1");
+    const PK2 = key<number>("PK2");
 
     const gp = newInjector([
         provide(PK1).use(() => inject(PK2)),
@@ -38,11 +42,11 @@ Deno.test('v4', () => {
     const pA = p.get(A);
     assert(pA !== cA);
     assert(pA.b !== cA.b);
-    assert(pA.b.c !== cA.b.c)
+    assert(pA.b.c !== cA.b.c);
     assert(pA instanceof A_);
     assert(pA.b instanceof B_);
     assert(pA.b.c instanceof C);
-    
+
     // grandparent injector respects its A provider
     const gpA = gp.get(A);
     assert(gpA !== pA);
@@ -58,13 +62,17 @@ Deno.test('v4', () => {
 
     // existing is like a distinct re-query, which means that the "existing" key
     // will sink to the parent-most injector by default
-    assert(gp.get(C_) == c.get(C_))
+    assert(gp.get(C_) == c.get(C_));
 });
 
-Deno.test('v4 - correct dep recording on previously built keys', () => {
+Deno.test("v4 - correct dep recording on previously built keys", () => {
     class C {}
-    class B {public readonly c = inject(C)}
-    class A {public readonly b = inject(B)}
+    class B {
+        public readonly c = inject(C);
+    }
+    class A {
+        public readonly b = inject(B);
+    }
     const p = newInjector([]);
     p.get(C);
     p.get(B);

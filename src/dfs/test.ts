@@ -1,4 +1,4 @@
-import { assert } from "../../test/lib.ts";
+import { assert } from "../../src/test/lib.ts";
 import { dfs, type Frame } from "./dfs.ts";
 
 Deno.test("correct iteration", () => {

@@ -42,6 +42,7 @@ class Provider<T> {
         };
     }
 }
+
 export function provide<T>(key: InjectKey<T>): Provider<T> {
     return new Provider(key);
 }

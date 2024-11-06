@@ -1,7 +1,7 @@
 import type { InjectKey, Structor } from "./injectkey.ts";
-import type { Frame } from "./lib/dfs/dfs.ts";
-import { dfs } from "./lib/dfs/dfs.ts";
 import type { Provide } from "./provide.ts";
+import { dfs } from "./dfs/dfs.ts";
+import type { Frame } from "./dfs/dfs.ts";
 
 /**
  * As constrasted with "Provide", a Provided is what you get when you pass
@@ -143,7 +143,7 @@ class Injector {
     private findHolder(provide: Built) {
         let holder = provide.holder;
         const visited = new Set<Provided>();
-        dfs(provide.deps, (_, frame: Frame<Built>) => {
+        dfs(provide.deps, (_: Built, frame: Frame<Built>) => {
             const [dep, prev] = frame;
             if (visited.has(dep)) {
                 return [];
