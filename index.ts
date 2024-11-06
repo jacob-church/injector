@@ -1,3 +1,3 @@
-export { inject, newInjector } from "./src/injector.ts";
+export { inject, injectOptional, newInjector } from "./src/injector.ts";
 export { provide } from "./src/provider.ts";
 export { key } from "./src/providekey.ts";

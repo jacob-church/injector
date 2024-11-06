@@ -1,8 +1,12 @@
 import type { ProvideKey } from "./providekey.ts";
 
-export type Structor<T> = new () => T;
+// deno-lint-ignore no-explicit-any
+export type Ctor<T> = new (...args: any[]) => T;
+// deno-lint-ignore no-explicit-any
+export type AbstractCtor<T> = abstract new (...args: any[]) => T;
 export type InjectKey<T = unknown> =
     | ProvideKey<T>
-    | Structor<T>
-    // deno-lint-ignore ban-types
-    | Function & { prototype: T };
+    | Ctor<T>
+    | AbstractCtor<T>;
+
+export type ProviderRequired = ProvideKey<unknown> | AbstractCtor<unknown>;

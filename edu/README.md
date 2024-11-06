@@ -10,5 +10,4 @@ Every version has an exported `inject` function.
 - `v4` resolves the limitations of `v3`
 - `v5` significantly improves the performance of `v4`
 
-TODO: error handling, cycle detection, useExistingFactory, injectOptional,
-injectOrThrow, getInjectionContext, namespacing?
+TODO: useExistingFactory, namespacing?

@@ -1,7 +1,29 @@
-import { inject, newInjector } from "../injector.ts";
+import {
+    CyclicDependencyError,
+    MissingProvideError,
+    TooManyArgsError,
+} from "../injecterror.ts";
+import { inject, injectOptional, newInjector } from "../injector.ts";
 import { key } from "../providekey.ts";
 import { provide } from "../provider.ts";
 import { assert } from "./lib.ts";
+
+Deno.test("inject doesn't work outside of injection context", () => {
+    class B {}
+    class A {
+        public b = inject(B);
+    }
+    let caught = false;
+    try {
+        new A();
+    } catch {
+        caught = true;
+    }
+    assert(
+        caught,
+        "should error when calling inject outside of an injection context",
+    );
+});
 
 Deno.test("cached singletons", () => {
     let count = 0;
@@ -157,10 +179,10 @@ Deno.test("dependency consideration", async (test) => {
 });
 
 Deno.test("existing provider chaining", () => {
-    const PK1 = key<number>();
-    const PK2 = key<number>();
-    const PK3 = key<number>();
-    const PK4 = key<number>();
+    const PK1 = key<number>("PK1");
+    const PK2 = key<number>("PK2");
+    const PK3 = key<number>("PK3");
+    const PK4 = key<number>("PK4");
 
     const p = newInjector([
         provide(PK2).useValue(0),
@@ -240,4 +262,103 @@ Deno.test("correct accounting for newly discovered dependencies", () => {
         "child should incorporate previously unknown provides",
     );
     assert(cA !== p.get(A), "child and parent should make different A");
+});
+
+Deno.test("inject errors", async (test) => {
+    await test.step("too many args error", () => {
+        class TooManyArgs {
+            constructor(public arg: unknown) {}
+        }
+
+        const i = newInjector();
+
+        let caught = false;
+        try {
+            i.get(TooManyArgs);
+        } catch (e) {
+            if (e instanceof TooManyArgsError) {
+                caught = true;
+            }
+        }
+        assert(
+            caught,
+            "should error when trying to implicitly inject a type with constructor args",
+        );
+    });
+
+    await test.step("no provider error", () => {
+        const Key = key<number>("Key");
+        const i = newInjector();
+        let caught = false;
+        try {
+            i.get(Key);
+        } catch (e) {
+            if (e instanceof MissingProvideError) {
+                caught = true;
+            }
+        }
+        assert(
+            caught,
+            "should error when trying to implicitly inject a ProvideKey",
+        );
+    });
+
+    await test.step("cycle detection error", () => {
+        const K = key<A>("K");
+        class C {
+            public k = inject(K);
+        }
+        class B {
+            public c = inject(C);
+        }
+        class A {
+            public b = inject(B);
+        }
+        let caught = false;
+        try {
+            newInjector([provide(K).useExisting(A)]).get(A);
+        } catch (e) {
+            if (e instanceof CyclicDependencyError) {
+                caught = true;
+            }
+        }
+        assert(caught, "should throw cyclic dependency error");
+    });
+
+    await test.step("inject errors include injection stack trace", () => {
+        const Key = key<number>("Key");
+        class C {
+            public readonly k = inject(Key);
+        }
+        class B {
+            public readonly c = inject(C);
+        }
+        class A {
+            public readonly a = inject(B);
+        }
+
+        let caught = false;
+        try {
+            newInjector().get(A);
+        } catch (e: unknown) {
+            if (e instanceof Error) {
+                caught = true;
+                assert(
+                    e.message.includes("Failed to inject (A -> B -> C -> Key)"),
+                    "should print the injection stack trace that failed",
+                );
+            }
+        }
+        assert(caught, "should produce error");
+    });
+});
+
+Deno.test("injectOptional", () => {
+    const K = key<number>("K");
+    class A {
+        public k = injectOptional(K);
+    }
+    const a = newInjector().get(A);
+
+    assert(a.k === undefined, "shouldn't fail when using injectOptional");
 });

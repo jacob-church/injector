@@ -1,7 +1,54 @@
-import type { InjectKey, Structor } from "./injectkey.ts";
+import type { Ctor, InjectKey } from "./injectkey.ts";
 import type { Provide } from "./provide.ts";
 import { dfs } from "./dfs/dfs.ts";
 import type { Frame } from "./dfs/dfs.ts";
+import {
+    InjectionStack,
+    MissingProvideError,
+    TooManyArgsError,
+} from "./injecterror.ts";
+import { ProvideKey } from "./providekey.ts";
+
+/**
+ * When used within an active injection context (under a `.get` on a real injector) returns a singleton of type T from the active injection context
+ *
+ * @param key an injectable type (class type or `ProvideKey`)
+ * @returns a singleton of type `T`
+ */
+export function inject<T>(key: InjectKey<T>): T {
+    return Injector.inject(key);
+}
+
+/**
+ * As `inject`, but if the injected key is not provided, returns `undefined` instead. Only for `ProvideKey`s
+ *
+ * @param key `ProvideKey<T>`
+ * @returns a singleton type `T` or `undefined`
+ *
+ * TODO: probably needs stack count so we don't obscure lower errors
+ */
+export function injectOptional<T>(key: ProvideKey<T>): T | undefined {
+    try {
+        return inject(key);
+    } catch (error) {
+        if (error instanceof MissingProvideError) {
+            return undefined;
+        }
+        // any other kind of error should be dealt with by the developer
+    }
+}
+
+/**
+ * Setup an injector
+ *
+ * @param provides (optional) a list of `Provide`
+ * @param parent (optional) another injector to defer to when this injector is not specifically configured to handle a requested type
+ *
+ * @returns a configured Injector
+ */
+export function newInjector(provides?: Provide[], parent?: Injector): Injector {
+    return new Injector(provides, parent);
+}
 
 /**
  * As constrasted with "Provide", a Provided is what you get when you pass
@@ -25,12 +72,14 @@ class Injector {
     // when defined, an active injection context
     private static context: Injector | undefined = undefined;
     /**
-     * by defining this inside the injector, we can access getInContext and skip redefining
-     * context, and gobbling up stack space
+     * By defining this inside the injector, we can keep `context` safe from
+     * meddling, and we can access `getInContext` to skip redefining context, gobbling up stack space
      */
     public static inject<T>(key: InjectKey<T>): T {
         if (!Injector.context) {
-            throw new Error();
+            throw new Error(
+                "No active injection context. Create an injector with `newInjector`.",
+            );
         }
         return Injector.context.getInContext(key);
     }
@@ -74,16 +123,21 @@ class Injector {
      * The actual `get` implementation; assumes an active injection context
      */
     private getInContext<T>(key: InjectKey<T>): T {
-        const built = this.cache.get(key) ?? this.getOrBuild(key);
-        if (Injector.buildingProvide) {
-            // whenever a key is requested, its essential to tie the dependency
-            // to a higher stack frame if there is one, for correct homing of entries
-            Injector.buildingProvide.deps.push(built);
-            Injector.buildingProvide.holder = built.holder.maxRank(
-                Injector.buildingProvide.holder,
-            );
+        InjectionStack.push(key);
+        try {
+            const built = this.cache.get(key) ?? this.getOrBuild(key);
+            if (Injector.buildingProvide) {
+                // whenever a key is requested, its essential to tie the dependency
+                // to a higher stack frame if there is one, for correct homing of entries
+                Injector.buildingProvide.deps.push(built);
+                Injector.buildingProvide.holder = built.holder.maxRank(
+                    Injector.buildingProvide.holder,
+                );
+            }
+            return built.value as T;
+        } finally {
+            InjectionStack.pop();
         }
-        return built.value as T;
     }
 
     /**
@@ -129,9 +183,15 @@ class Injector {
         if (this.parent) {
             return this.parent.getProvide(key, backstop);
         }
+        if (key instanceof ProvideKey) {
+            throw new MissingProvideError(key);
+        }
+        if (key.length > 0) {
+            throw new TooManyArgsError(key);
+        }
         return {
             key,
-            factory: () => new (key as Structor<T>)(),
+            factory: () => new (key as Ctor<T>)(),
             holder: this,
         };
     }
@@ -229,28 +289,4 @@ class Injector {
     private maxRank(other: Injector): Injector {
         return this.rank > other.rank ? this : other;
     }
-}
-
-/**
- * When used within an active injection context (under a `.get` on a real injector)
- * returns a singleton of type T from the active injection context
- *
- * @param key an injectable type (class type or `ProvideKey`)
- * @returns a singleton of type `T`
- */
-export function inject<T>(key: InjectKey<T>): T {
-    return Injector.inject(key);
-}
-
-/**
- * Setup an injector
- *
- * @param provides (optional) a list of `Provide`
- * @param parent (optional) another injector to defer to when this injector is
- * not specifically configured to handle a requested type
- *
- * @returns a configured Injector
- */
-export function newInjector(provides?: Provide[], parent?: Injector): Injector {
-    return new Injector(provides, parent);
 }
