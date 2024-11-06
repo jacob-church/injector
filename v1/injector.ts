@@ -5,38 +5,38 @@ The simplest "cool" feature an injector offers: managed singletons.
 This injector makes sure that no singleton is ever created more than once.
 */
 
-type InjectKey<T = unknown> = (new () => T)
+type Structor<T> = new () => T;
+type InjectKey<T = unknown> = Structor<T>;
 
 class Injector {
-    private entries = new Map<InjectKey, unknown>();
+    private provides = new Map<InjectKey, unknown>();
 
     public get<T>(key: InjectKey<T>): T {
-        const prevInjector = currentInjector;
-        currentInjector = this;
+        const prevInjector = activeInjector;
+        activeInjector = this;
         try {
-            return this.getInternal(key);
+            return this.getInContext(key);
         } finally {
-            currentInjector = prevInjector;
+            activeInjector = prevInjector;
         }
     }
 
-    public getInternal<T>(key: InjectKey<T>): T {
-        if (!this.entries.has(key)) {
-            this.entries.set(key, new key());
+    private getInContext<T>(key: InjectKey<T>): T {
+        if (!this.provides.has(key)) {
+            this.provides.set(key, new key());
         }
-        return this.entries.get(key) as T;
+        return this.provides.get(key) as T;
     }
 }
 
-let currentInjector: Injector | undefined = undefined;
+let activeInjector: Injector | undefined = undefined;
 export function inject<T>(key: InjectKey<T>): T {
-    if (!currentInjector) {
-        throw Error('No active injector');
+    if (!activeInjector) {
+        throw new Error();
     }
-    return currentInjector.get(key);
+    return activeInjector.get(key);
 }
 
 export function newInjector() {
     return new Injector();
 }
-
