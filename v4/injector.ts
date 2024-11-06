@@ -7,6 +7,8 @@ interrelated provides from injectors throughout the hierarchy
 
 */
 
+import { dfs } from "../src/lib/dfs/dfs.ts";
+
 class ProvideKey<T> {
     constructor(public readonly name: string) {}
 }
@@ -18,18 +20,18 @@ type Structor<T> = new () => T;
 type InjectKey<T = unknown> = ProvideKey<T> | Structor<T>;
 
 interface Provide<T = unknown> {
-    key: InjectKey<T>,
-    factory: () => T,
+    key: InjectKey<T>;
+    factory: () => T;
 }
 
 class Provider<T> {
-    constructor(private readonly key: InjectKey<T>) {};
-    
+    constructor(private readonly key: InjectKey<T>) {}
+
     public use(factory: () => T): Provide<T> {
         return {
             key: this.key,
             factory,
-        }
+        };
     }
     // value    {key: K, factory: () => <instance of K>}
     // factory  {key: K, factory: () => new K()}
@@ -39,149 +41,134 @@ export function provide<T>(key: InjectKey<T>): Provider<T> {
     return new Provider(key);
 }
 
-type Entry<T = unknown> = Provide<T> & {
-    explicit?: true;
+type Provided<T = unknown> = Provide<T> & {
+    holder: Injector;
+    explicitly?: true;
     value?: T;
-    deps?: BuiltEntry[],
-}
-
-type BuiltEntry<T = unknown> = Provide<T> & {
-    value: T,
-    deps: BuiltEntry[],
-}
-function isBuilt<T>(entry: Entry<T>): entry is BuiltEntry<T> {
-    return typeof entry.deps !== 'undefined';
+    deps?: Built[];
+};
+type Built<T = unknown> = Provided<T> & {
+    value: T;
+    deps: Built[];
+};
+function isBuilt<T>(provide: Provided<T>): provide is Built<T> {
+    return typeof provide.deps !== "undefined";
 }
 
 class Injector {
-    private static depRecord: BuiltEntry[] | undefined = undefined;
-    private entries = new Map<InjectKey, Entry>();
+    private static buildingProvide: Built | undefined = undefined;
 
-    constructor(provides?: Provide[], private readonly parent?: Injector) {
-        for (const provide of provides ?? []) {
-            this.entries.set(provide.key, {...provide, explicit: true});
-        } 
+    private provides = new Map<InjectKey, Provided>();
+    private rank: number;
+
+    constructor(provides: Provide[] = [], private parent?: Injector) {
+        for (const provide of provides) {
+            this.provides.set(provide.key, {
+                ...provide,
+                holder: this,
+                explicitly: true,
+            });
+        }
+        this.rank = this.parent ? this.parent.rank + 1 : 0;
     }
 
     public get<T>(key: InjectKey<T>): T {
-        const prevInjector = currentInjector;
-        currentInjector = this;
+        const prevInjector = activeInjector;
+        activeInjector = this;
         try {
-            return this.getInternal(key);
+            return this.getInContext(key);
         } finally {
-            currentInjector = prevInjector;
+            activeInjector = prevInjector;
         }
     }
 
-    public getInternal<T>(key: InjectKey<T>): T {
-        let {entry, injector} = this.getOwnedEntry(key);
-        const needsBuildToRecordDeps = !isBuilt(entry);
-        if (needsBuildToRecordDeps) {
-            entry = this.build({...entry});
+    private getInContext<T>(key: InjectKey<T>): T {
+        const built = this.getOrBuild(key);
+        if (Injector.buildingProvide) {
+            Injector.buildingProvide.deps.push(built);
+            Injector.buildingProvide.holder = built.holder.maxRank(
+                Injector.buildingProvide.holder,
+            );
         }
-        const settled = this.getSettledInjector(entry as BuiltEntry<T>, injector);
-        if (!needsBuildToRecordDeps && settled != injector) {
-            // we need a fresh built entry if we're updating the owner
-            entry = this.build({...entry});
-        }
-        this.storeSettledEntry(entry, settled);
-        return this.recordedEntry(entry as BuiltEntry<T>);
+        return built.value as T;
     }
 
-    private getOwnedEntry<T>(key: InjectKey<T>): {entry: Entry, injector: Injector} {
-        const entry = this.entries.get(key);
-        if (entry) {
-            return {entry, injector: this};
+    private getOrBuild<T>(key: InjectKey<T>): Built<T> {
+        const provide = this.getProvide(key)!;
+        if (
+            isBuilt(provide) &&
+            provide.holder == this.findHolder(provide)
+        ) {
+            return provide;
         }
-        if (!this.parent) {
-            return {
-                entry: {key, factory: () => new (key as Structor<T>)()},
-                injector: this,
+        return this.buildAndStore(provide);
+    }
+
+    private getProvide<T>(
+        key: InjectKey<T>,
+    ): Provided<T> | undefined {
+        const provide = this.provides.get(key);
+        if (provide) {
+            return provide as Provided<T>;
+        }
+        if (this.parent) {
+            return this.parent.getProvide(key);
+        }
+        return {
+            key,
+            factory: () => new (key as Structor<T>)(),
+            holder: this,
+        };
+    }
+
+    private findHolder(provide: Built) {
+        let holder = provide.holder;
+        const visited = new Set<Provided>();
+        dfs(provide.deps, (dep: Built) => {
+            if (visited.has(dep)) {
+                return [];
             }
-        }
-        return this.parent.getOwnedEntry(key);
+            visited.add(dep);
+
+            const highestProvide = this.getProvide(dep.key);
+            if (highestProvide) {
+                holder = holder.maxRank(highestProvide.holder);
+            }
+            if (holder == this) {
+                return "stop";
+            }
+            return dep.deps;
+        });
+
+        return holder;
     }
 
-    private storeSettledEntry(entry: Entry, owningInjector: Injector) {
-        owningInjector.entries.set(entry.key, entry);
-    } 
-
-    private build<T>(entry: Entry<T>): BuiltEntry<T> {
-        const prevDepRecord = Injector.depRecord;
-        Injector.depRecord = [];
+    private buildAndStore<T>(provide: Provided<T>): Built<T> {
+        const built = { ...provide, deps: [] } as Built<T>;
+        const prevBuildingProvide = Injector.buildingProvide;
+        Injector.buildingProvide = built;
         try {
-            entry.value = entry.factory();
-            entry.deps = Injector.depRecord;
+            built.value = built.factory();
         } finally {
-            Injector.depRecord = prevDepRecord;
+            Injector.buildingProvide = prevBuildingProvide;
         }
-        return entry as BuiltEntry<T>;
+        built.holder.provides.set(built.key, built);
+        return built;
     }
 
-    private getSettledInjector(entry: BuiltEntry, originalOwner: Injector) {
-        // iterate over all of the deps of this entry, 
-        // for each, figure out the lowest injector that can hold
-        // it. store in the highest such injector
-        let injector: Injector = this;
-        const injectors: Injector[] = [this];
-        while (injector.parent) {
-            injector = injector.parent;
-            injectors.push(injector)
-            if (injector == originalOwner) {
-                break;
-            }
-        }
-
-        let lowest = injectors.length-1;
-        for (const depKey of this.transitiveDeps(entry)) {
-            // find explicit injector, track depth
-            for (let i = 0; i < lowest; i++) {
-                if (injectors[i].hasExplicitly(depKey)) {
-                    lowest = Math.min(i, lowest);
-                    break;
-                }
-            }
-            if (lowest == 0) {
-                break;
-            }
-        }
-        return injectors[lowest];
-    }
-
-    private hasExplicitly(key: InjectKey): boolean {
-        return !!this.entries.get(key)?.explicit;
-    }
-
-    private *transitiveDeps(entry: BuiltEntry, visited: Set<InjectKey> = new Set()): Iterable<InjectKey> {
-        if (visited.has(entry.key)) {
-            return;
-        }
-        visited.add(entry.key);
-        yield entry.key;
-        for (const dep of entry.deps) {
-            yield* this.transitiveDeps(dep, visited);
-        }
-    }
-
-    
-
-    private recordedEntry<T>(entry: BuiltEntry<T>): T {
-        // makes sure that previously built things are correctly tied
-        // to the things that request them
-        Injector.depRecord?.push(entry);
-        return entry.value;
+    private maxRank(other: Injector): Injector {
+        return this.rank > other.rank ? this : other;
     }
 }
 
-let currentInjector: Injector | undefined = new Injector();
+let activeInjector: Injector | undefined = undefined;
 export function inject<T>(key: InjectKey<T>): T {
-    if (!currentInjector) {
-        throw Error('No active injector');
+    if (!activeInjector) {
+        throw new Error();
     }
-    return currentInjector.get(key);
+    return activeInjector.get(key);
 }
 
 export function newInjector(provides?: Provide[], parent?: Injector) {
     return new Injector(provides, parent);
 }
-
