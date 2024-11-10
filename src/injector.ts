@@ -50,6 +50,18 @@ export function newInjector(provides?: Provide[], parent?: Injector): Injector {
     return new Injector(provides, parent);
 }
 
+interface InjectionContext {
+    run: <T>(fn: () => T) => T;
+}
+/**
+ * Saves the active injection context into an object for creating injectable objects after a classes constructor has completed.
+ *
+ * @returns a valid InjectionContext that can be used at any time
+ */
+export function getInjectionContext(): InjectionContext {
+    return Injector.getInjectionContext();
+}
+
 /**
  * As constrasted with "Provide", a Provided is what you get when you pass
  * a Provide into an Injector
@@ -82,6 +94,28 @@ class Injector {
             );
         }
         return Injector.context.getInContext(key);
+    }
+    /**
+     * see `inject`
+     */
+    public static getInjectionContext(): InjectionContext {
+        if (!Injector.context) {
+            throw new Error(
+                "No active injection context. Create an injector with `newInjector`.",
+            );
+        }
+        const context = Injector.context;
+        return {
+            run: (fn) => {
+                const prevContext = Injector.context;
+                Injector.context = context;
+                try {
+                    return fn();
+                } finally {
+                    Injector.context = prevContext;
+                }
+            },
+        };
     }
     // a provide that is currently being built, on the next stack frame up
     private static buildingProvide: Built | undefined = undefined;

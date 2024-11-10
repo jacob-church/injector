@@ -1,4 +1,4 @@
-import type { InjectKey } from "./injectkey.ts";
+import type { ConcreteInjectKey, InjectKey } from "./injectkey.ts";
 import { inject } from "./injector.ts";
 import type { Provide } from "./provide.ts";
 
@@ -15,8 +15,7 @@ export class Provider<T> {
         };
     }
     /**
-     * For providing an already constructed object, primitive value, or optional
-     * value (not yet implemented)
+     * For providing an already constructed object, primitive value, or optional value (not yet implemented)
      */
     public useValue(value: T): Provide<T> {
         return {
@@ -32,8 +31,12 @@ export class Provider<T> {
     }
     /**
      * Re-keys to a secondary key (e.g. A -> MockA)
+     * (Equivalent to making a separate request to the same injector for the second key)
+     *
+     * @param key a concrete type
+     * (NOTE: as TypeScript/JavaScript do not currently provide a way to validate that a given type/constructor is abstract at runtime, this function does not allow re-keying to another abstract type, as this can easily lead to constructing an abstract class unintentionally)
      */
-    public useExisting(key: InjectKey<T>): Provide<T> {
+    public useExisting(key: ConcreteInjectKey<T>): Provide<T> {
         return {
             key: this.key,
             factory: () => inject(key),

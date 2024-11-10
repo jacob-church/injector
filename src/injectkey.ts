@@ -8,5 +8,6 @@ export type InjectKey<T = unknown> =
     | ProvideKey<T>
     | Ctor<T>
     | AbstractCtor<T>;
+export type ConcreteInjectKey<T = unknown> = ProvideKey<T> | Ctor<T>;
 
 export type ProviderRequired = ProvideKey<unknown> | AbstractCtor<unknown>;

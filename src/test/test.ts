@@ -3,7 +3,12 @@ import {
     MissingProvideError,
     TooManyArgsError,
 } from "../injecterror.ts";
-import { inject, injectOptional, newInjector } from "../injector.ts";
+import {
+    getInjectionContext,
+    inject,
+    injectOptional,
+    newInjector,
+} from "../injector.ts";
 import { key } from "../providekey.ts";
 import { provide } from "../provider.ts";
 import { assert } from "./lib.ts";
@@ -361,4 +366,30 @@ Deno.test("injectOptional", () => {
     const a = newInjector().get(A);
 
     assert(a.k === undefined, "shouldn't fail when using injectOptional");
+});
+
+Deno.test("getInjectionContext", () => {
+    class A {
+        public b?: B;
+        public context = getInjectionContext();
+
+        public functionThatMakesB() {
+            this.b = this.context.run(() => new B());
+        }
+    }
+    class B {
+        public c = inject(C);
+    }
+    class C {}
+
+    let caught = false;
+    const a = newInjector().get(A);
+    assert(a.b === undefined, "B is not initialized");
+    try {
+        a.functionThatMakesB();
+    } catch {
+        caught = true;
+    }
+    assert(!caught, "shouldn't fail when using an injection context");
+    assert(a.b instanceof B, "should correctly use injection context");
 });
