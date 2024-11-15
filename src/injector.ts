@@ -1,7 +1,5 @@
 import type { Ctor, InjectKey } from "./injectkey.ts";
 import type { Provide } from "./provide.ts";
-import { dfs } from "./dfs/dfs.ts";
-import type { Frame } from "./dfs/dfs.ts";
 import {
     InjectionStack,
     MissingProvideError,
@@ -68,7 +66,6 @@ export function getInjectionContext(): InjectionContext {
  */
 type Provided<T = unknown> = Provide<T> & {
     holder: Injector; // the Injector that holds this object
-    explicitly?: true; // whether this object was passed externally to the Injector
     value?: T;
     deps?: Built[]; // a record of other types that injected while assigning `value`
 };
@@ -81,6 +78,7 @@ function isBuilt<T>(provide: Provided<T>): provide is Built<T> {
 }
 
 class Injector {
+    // STATIC ////////////////////////////////////////////////////////////////
     // when defined, an active injection context
     private static context: Injector | undefined = undefined;
     /**
@@ -119,22 +117,16 @@ class Injector {
     }
     // a provide that is currently being built, on the next stack frame up
     private static buildingProvide: Built | undefined = undefined;
-    //////////////////////////////////////////////////////////////////////////
+    // MEMBERS ///////////////////////////////////////////////////////////////
     // the provides stored in this injector
     private provides = new Map<InjectKey, Provided>();
     // super fast get of objects already built by this injector
     private cache = new Map<InjectKey, Built>();
     // a quick reference for comparing where two injectors sit within the same hierarchy
     private rank: number;
-    //////////////////////////////////////////////////////////////////////////
+    // PUBLIC ////////////////////////////////////////////////////////////////
     constructor(provides: Provide[] = [], private parent?: Injector) {
-        for (const provide of provides) {
-            this.provides.set(provide.key, {
-                ...provide,
-                holder: this,
-                explicitly: true,
-            });
-        }
+        provides.map((p) => this.setLocalProvide(p));
         this.rank = this.parent ? this.parent.rank + 1 : 0;
     }
 
@@ -152,7 +144,19 @@ class Injector {
             Injector.context = prevInjector;
         }
     }
-    //////////////////////////////////////////////////////////////////////////
+    // PRIVATE ///////////////////////////////////////////////////////////////
+    /**
+     * Copies the minimum necessary information from a Provide into this injector,
+     * marks that provide as held by this injector
+     */
+    private setLocalProvide(provide: Provide): void {
+        this.provides.set(provide.key, {
+            key: provide.key,
+            factory: provide.factory,
+            holder: this,
+        });
+    }
+
     /**
      * The actual `get` implementation; assumes an active injection context
      */
@@ -162,7 +166,7 @@ class Injector {
             const built = this.cache.get(key) ?? this.getOrBuild(key);
             if (Injector.buildingProvide) {
                 // whenever a key is requested, its essential to tie the dependency
-                // to a higher stack frame if there is one, for correct homing of entries
+                // to a higher stack frame if there is one, for correct storage of entries
                 Injector.buildingProvide.deps.push(built);
                 Injector.buildingProvide.holder = built.holder.maxRank(
                     Injector.buildingProvide.holder,
@@ -180,11 +184,7 @@ class Injector {
      */
     private getOrBuild<T>(key: InjectKey<T>): Built<T> {
         const provide = this.getProvide(key);
-        if (
-            isBuilt(provide) &&
-            provide.holder == this.findHolder(provide)
-        ) {
-            this.cacheProvide(provide);
+        if (isBuilt(provide) && !this.needsRebuild(provide)) {
             return provide;
         }
         return this.buildAndStore(provide);
@@ -196,7 +196,7 @@ class Injector {
      *
      * @param backstop optionally specify a boundary injector;
      * if a Provided has not been found before reaching this backstop,
-     * return `undefined` instead
+     * return `undefined` instead (optimized for needsRebuild check)
      */
     private getProvide<T>(key: InjectKey<T>): Provided<T>;
     private getProvide<T>(
@@ -207,7 +207,7 @@ class Injector {
         key: InjectKey<T>,
         backstop?: Injector | undefined,
     ): Provided<T> | undefined {
-        const provide = this.cache.get(key) ?? this.provides.get(key);
+        const provide = this.provides.get(key);
         if (provide) {
             return provide as Provided<T>;
         }
@@ -231,60 +231,57 @@ class Injector {
     }
 
     /**
-     * Given a BuiltProvide, determines conclusively which injector
-     * should hold that provide
+     * Given a provide, determine if it needs to be rebuilt in the current context
      */
-    private findHolder(provide: Built) {
-        let holder = provide.holder;
-        const visited = new Set<Provided>();
-        dfs(provide.deps, (_: Built, frame: Frame<Built>) => {
-            const [dep, prev] = frame;
-            if (visited.has(dep)) {
-                return [];
-            }
-            visited.add(dep);
-
-            const cached = this.cache.get(dep.key);
-            if (cached) {
-                holder = holder.maxRank(cached.holder);
-                return [];
-            }
-
-            const highestProvide = this.getProvide(dep.key, holder);
-            if (highestProvide?.explicitly && !isBuilt(highestProvide)) {
-                this._buildStack([highestProvide, prev]);
-            }
-            if (highestProvide) {
-                holder = holder.maxRank(highestProvide.holder);
-            }
-            if (holder == this) {
-                // finalInjector can't get any higher, so get it over with
-                this._buildStack([dep, prev]);
-                return "stop";
-            }
-            return dep.deps;
-        });
-        return holder;
+    private needsRebuild(provide: Built): boolean {
+        return !!this.getFirstOverridingInjector(provide, provide.holder)[0];
     }
 
     /**
-     * ONLY FOR USE IN `findHomeInjector`
-     * Using the `Frame` type provided with `dfs`, eagerly builds up a dependency branch
-     * to ensure that we avoid wasteful calls to findHomeInjector in the future
+     * Finds the first injector, if any, that overrides any provide in the
+     * given dependency tree (recursive over transitive dependencies)
      *
-     * In combination with our `cache`, helps us skip calling `getBuiltProvide` altogether
-     * after we've already determined that certain builds will be necessary
+     * For optimization purposes, this method will also mutate .cache and
+     * .provides to speedup future lookups
      */
-    private _buildStack(frame: Frame<Provided> | undefined) {
-        if (!frame) {
-            return;
+    private getFirstOverridingInjector(
+        provide: Built,
+        currHolder: Injector,
+        visited: Set<InjectKey> = new Set(),
+    ): [Injector | undefined, boolean] {
+        if (visited.has(provide.key)) {
+            return [undefined, false];
         }
-        const [provide, prev] = frame;
-        if (this.cache.has(provide.key)) {
-            return;
+        visited.add(provide.key);
+
+        // Step 1. check for overriding provide
+        const depProvide = this.cache.get(provide.key) ??
+            this.getProvide(provide.key, currHolder);
+        if (depProvide && depProvide.holder.rank > currHolder.rank) {
+            // any provider that is higher in the hierarchy than the provider
+            // we kicked this off with is an indication rebuilding is necessary
+            return [depProvide.holder, false];
+        } else if (this.cache.has(provide.key)) {
+            // cached keys are already assigned fully by this injector, so continuing is not needed
+            return [undefined, false];
         }
-        this.buildAndStore(provide);
-        this._buildStack(prev);
+
+        // Step 2. recurse
+        for (const dep of provide.deps) {
+            const [overrideInjector, overwriteProvide] = this
+                .getFirstOverridingInjector(dep, currHolder, visited);
+            if (overrideInjector) {
+                // "copying" the dep into the relevant injector, unbuilt, guarantees we can skip
+                // wasteful calls to this needsRebuild in the future
+                overwriteProvide && overrideInjector.setLocalProvide(dep);
+                return [overrideInjector, true];
+            }
+        }
+
+        // Step 3. reaching this point indicates no overriding provide was found, so we've
+        // effectively determined "needRebuild" for this provide as well
+        this.cacheBuilt(provide);
+        return [undefined, false];
     }
 
     /**
@@ -299,20 +296,20 @@ class Injector {
         } finally {
             Injector.buildingProvide = prevBuildingProvide;
         }
-        built.holder.provides.set(built.key, built); // overwrite in holder injector with the BuiltProvide
-        this.cacheProvide(built);
+        built.holder.provides.set(built.key, built); // overwrite in holder injector with the Built provide
+        this.cacheBuilt(built);
         return built;
     }
 
     /**
-     * Let every injector between this and provide.home (inclusive)
-     * know that the given provide has been built and settled
+     * Let every injector between this and provide.holder (inclusive)
+     * know that the given provide has been built and assigned
      */
-    private cacheProvide<T>(provide: Built<T>): void {
+    private cacheBuilt<T>(provide: Built<T>): void {
         if (!this.cache.has(provide.key)) {
             this.cache.set(provide.key, provide);
             if (this !== provide.holder) {
-                this.parent?.cacheProvide(provide);
+                this.parent?.cacheBuilt(provide);
             }
         }
     }
