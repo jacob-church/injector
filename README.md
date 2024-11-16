@@ -30,6 +30,7 @@ class A {
     public readonly b = inject(B);
 }
 ```
+> **_NOTE:_** A class that has `inject` dependencies *cannot* be constructed outside of an active injector context.
 
 ### Configuring an injector
 
