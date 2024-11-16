@@ -144,6 +144,15 @@ class Injector {
             Injector.context = prevInjector;
         }
     }
+
+    /**
+     * Creates a new Injector as a child to `this` Injector
+     * @param provides (optional) provide configuration for the new Injector
+     * @returns Injector
+     */
+    public child(provides: Provide[] = []): Injector {
+        return new Injector(provides, this);
+    }
     // PRIVATE ///////////////////////////////////////////////////////////////
     /**
      * Copies the minimum necessary information from a Provide into this injector,
@@ -156,7 +165,6 @@ class Injector {
             holder: this,
         });
     }
-
     /**
      * The actual `get` implementation; assumes an active injection context
      */

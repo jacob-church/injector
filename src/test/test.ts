@@ -456,3 +456,20 @@ Deno.test("dependency recording", async (test) => {
         assert(caught, "should have thrown error");
     });
 });
+
+Deno.test("child injector function", () => {
+    class A {
+        public b = inject(B);
+    }
+    class B {}
+    class A_ extends A {}
+    class B_ extends B {}
+    const p = newInjector([provide(A).useExisting(A_)]);
+    const c = p.child([provide(B).useExisting(B_)]);
+    const a = c.get(A);
+    assert(a instanceof A_, "should incorporate parent injector configuration");
+    assert(
+        a.b instanceof B_,
+        "should incorporate child injector configuration",
+    );
+});
