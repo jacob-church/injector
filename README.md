@@ -52,6 +52,7 @@ const injector = newInjector([
     provide(A).useExisting(SubA), // simple subsitutions from type to a subtype
 ]);
 ```
+> **_NOTE:_** The `useFactory` pattern above lets you break the first rule of "injectability". That's ok! Just be aware of the unique needs that a class with constructor arguments imposes
 
 For providing primitive or optional values, use `key`:
 
