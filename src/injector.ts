@@ -1,7 +1,9 @@
 import type { Ctor, InjectKey } from "./injectkey.ts";
 import type { Provide } from "./provide.ts";
 import {
+    InjectError,
     InjectionStack,
+    InjectorError,
     MissingProvideError,
     TooManyArgsError,
 } from "./injecterror.ts";
@@ -293,6 +295,12 @@ class Injector {
         Injector.buildingProvide = built;
         try {
             built.value = built.factory();
+        } catch (e) {
+            if (e instanceof InjectorError) {
+                throw e; // let these bubble up; we only wrap the error in a stack trace once
+            } else {
+                throw new InjectError(e as Error);
+            }
         } finally {
             Injector.buildingProvide = prevBuildingProvide;
         }

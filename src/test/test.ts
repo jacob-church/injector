@@ -210,65 +210,6 @@ Deno.test("existing provider chaining", () => {
     );
 });
 
-Deno.test("correct dependency recording on previously built keys", () => {
-    class C {}
-    class B {
-        public readonly c = inject(C);
-    }
-    class A {
-        public readonly b = inject(B);
-    }
-    const p = newInjector([]);
-    p.get(C);
-    p.get(B);
-    const pA = p.get(A);
-    const c = newInjector([provide(C).use(() => new C())], p);
-    const cA = c.get(A);
-
-    assert(
-        cA != pA,
-        "should detect a provider for a transitive dependency and make a new instance",
-    );
-});
-
-Deno.test("correct accounting for newly discovered dependencies", () => {
-    class D {}
-    class D_ extends D {}
-    class C {}
-    class B {
-        public c = inject(C);
-    }
-    class B_ extends B {
-        // adds a new dependency to the dependency tree
-        public d = inject(D);
-    }
-    class A {
-        public b = inject(B);
-    }
-
-    const gp = newInjector([]);
-    const p = newInjector([
-        provide(B).use(() => inject(B_)),
-    ], gp);
-    const c = newInjector([
-        provide(D).use(() => new D_()),
-    ], p);
-
-    const gpA = gp.get(A);
-    assert(
-        gpA.b instanceof B,
-        "grandparent shouldn't know about any other type B",
-    );
-
-    const cA = c.get(A);
-    assert(cA.b instanceof B_, "child should make a B_");
-    assert(
-        (cA.b as B_).d instanceof D_,
-        "child should incorporate previously unknown provides",
-    );
-    assert(cA !== p.get(A), "child and parent should make different A");
-});
-
 Deno.test("inject errors", async (test) => {
     await test.step("too many args error", () => {
         class TooManyArgs {
@@ -392,4 +333,107 @@ Deno.test("getInjectionContext", () => {
     }
     assert(!caught, "shouldn't fail when using an injection context");
     assert(a.b instanceof B, "should correctly use injection context");
+});
+
+Deno.test("correct dependency recording on previously built keys", () => {
+    class C {}
+    class B {
+        public readonly c = inject(C);
+    }
+    class A {
+        public readonly b = inject(B);
+    }
+    const p = newInjector([]);
+    p.get(C);
+    p.get(B);
+    const pA = p.get(A);
+    const c = newInjector([provide(C).use(() => new C())], p);
+    const cA = c.get(A);
+
+    assert(
+        cA != pA,
+        "should detect a provider for a transitive dependency and make a new instance",
+    );
+});
+
+Deno.test("dependency recording", async (test) => {
+    await test.step("correct accounting for newly discovered dependencies", () => {
+        class D {}
+        class D_ extends D {}
+        class C {}
+        class B {
+            public c = inject(C);
+        }
+        class B_ extends B {
+            // adds a new dependency to the dependency tree
+            public d = inject(D);
+        }
+        class A {
+            public b = inject(B);
+        }
+
+        const gp = newInjector([]);
+        const p = newInjector([
+            provide(B).use(() => inject(B_)),
+        ], gp);
+        const c = newInjector([
+            provide(D).use(() => new D_()),
+        ], p);
+
+        const gpA = gp.get(A);
+        assert(
+            gpA.b instanceof B,
+            "grandparent shouldn't know about any other type B",
+        );
+
+        const cA = c.get(A);
+        assert(cA.b instanceof B_, "child should make a B_");
+        assert(
+            (cA.b as B_).d instanceof D_,
+            "child should incorporate previously unknown provides",
+        );
+        assert(cA !== p.get(A), "child and parent should make different A");
+    });
+
+    await test.step("correctly reports errors in the midst of optimizations", () => {
+        class A {
+            public b = inject(B);
+        }
+        class B {
+            public c = inject(C);
+        }
+        class C {
+            public d = inject(D);
+        }
+        class C_ extends C {}
+        class D {
+            public e = inject(EKey);
+        }
+        const EKey = key<E>("EKey");
+        class E {}
+
+        const gp = newInjector([provide(EKey).useFactory(() => new E())]);
+        gp.get(A); // ensure a dependency record exists for all keys
+        const p = newInjector([
+            provide(C).useExisting(C_), // ensure that a needsReuild is triggered
+        ], gp);
+        const c = newInjector([
+            provide(EKey).use(() => {
+                throw new Error("Test Error"); // ensure that building produces an error at depth
+            }),
+        ], p);
+        let caught = false;
+        try {
+            c.get(A);
+        } catch (e) {
+            if (e instanceof Error) {
+                caught = true;
+                assert(
+                    e.message.includes("A -> B -> C -> C_ -> D -> EKey"),
+                    "should have correct stack trace in error",
+                );
+            }
+        }
+        assert(caught, "should have thrown error");
+    });
 });
