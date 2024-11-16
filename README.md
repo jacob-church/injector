@@ -80,9 +80,18 @@ You can create sub-injectors by passing an existing injector to the
 `newInjector` function:
 
 ```typescript
-const parent = newInjector([]);
+const parent = newInjector();
 const child = newInjector([], parent);
 ```
+
+Alternatively, you can use the `child` function on an existing injector:
+
+```typescript
+const parent = newInjector();
+const child = parent.child();
+```
+
+Pass `provide`s to this function to configure the new injector.
 
 Calling `.get` on a sub-injector will build and store new objects in the
 parent-most injector by default; however, when building with a sub-injector, the
