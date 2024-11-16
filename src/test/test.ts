@@ -299,14 +299,33 @@ Deno.test("inject errors", async (test) => {
     });
 });
 
-Deno.test("injectOptional", () => {
+Deno.test("injectOptional", async (test) => {
     const K = key<number>("K");
     class A {
         public k = injectOptional(K);
     }
-    const a = newInjector().get(A);
+    await test.step("simple usage", () => {
+        const a = newInjector().get(A);
 
-    assert(a.k === undefined, "shouldn't fail when using injectOptional");
+        assert(a.k === undefined, "shouldn't fail when using injectOptional");
+    });
+
+    await test.step("shouldn't consume unexpected errors", () => {
+        let caught = false;
+        class B {
+            public a = inject(A);
+        }
+        try {
+            newInjector([
+                provide(A).use(() => {
+                    throw new Error("Unexpected error");
+                }),
+            ]).get(B);
+        } catch {
+            caught = true;
+        }
+        assert(caught, "should have thrown error");
+    });
 });
 
 Deno.test("getInjectionContext", () => {
