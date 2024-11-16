@@ -1,8 +1,14 @@
 import type { InjectKey, ProviderRequired } from "./injectkey.ts";
 
 export class InjectorError extends Error {
-    constructor(message: string) {
-        super(withInjectionStack(message));
+    constructor(message: string, options?: ErrorOptions) {
+        super(withInjectionStack(message), options);
+    }
+}
+
+export class InjectError extends InjectorError {
+    constructor(cause: Error) {
+        super(cause.message, { cause });
     }
 }
 
@@ -59,8 +65,4 @@ function injectKeyName(key: InjectKey): string {
 function withInjectionStack(msg: string): string {
     const trace = InjectionStack.trace();
     return `Failed to inject (${trace}): ${msg}`;
-}
-export function injectError(e: Error): Error {
-    e.message = withInjectionStack(e.message);
-    return e;
 }
