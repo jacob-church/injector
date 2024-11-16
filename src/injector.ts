@@ -24,8 +24,6 @@ export function inject<T>(key: InjectKey<T>): T {
  *
  * @param key `ProvideKey<T>`
  * @returns a singleton type `T` or `undefined`
- *
- * TODO: probably needs stack count so we don't obscure lower errors
  */
 export function injectOptional<T>(key: ProvideKey<T>): T | undefined {
     try {
