@@ -30,7 +30,9 @@ class A {
     public readonly b = inject(B);
 }
 ```
-> **_NOTE:_** A class that has `inject` dependencies *cannot* be constructed outside of an active injector context.
+
+> **_NOTE:_** A class that has `inject` dependencies _cannot_ be constructed
+> outside of an active injector context.
 
 ### Configuring an injector
 
@@ -52,7 +54,10 @@ const injector = newInjector([
     provide(A).useExisting(SubA), // simple subsitutions from type to a subtype
 ]);
 ```
-> **_NOTE:_** The `useFactory` pattern above lets you break the first rule of "injectability". That's ok! Just be aware of the unique needs that a class with constructor arguments imposes
+
+> **_NOTE:_** The `useFactory` pattern above lets you break the first rule of
+> "injectability". That's ok! Just be aware of the unique needs that a class
+> with constructor arguments imposes
 
 For providing primitive or optional values, use `key`:
 
