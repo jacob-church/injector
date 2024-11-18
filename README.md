@@ -71,8 +71,8 @@ const injector = newInjector([
 ]);
 ```
 
-> **_NOTE:_** to inject a value that may or may not be configured with a provider, but
-> shouldn't cause an error, use `injectOptional`.
+> **_NOTE:_** to inject a value that may or may not be configured with a
+> provider, but shouldn't cause an error, use `injectOptional`.
 
 ### Injector hierarchy
 
@@ -150,7 +150,7 @@ class Fleet {
 }
 ```
 
-> **_NOTE:_** Effectively this method means the same injector that received the `.get`
-> request which created this object will receive its `.run` requests; currently,
-> this is irrespective of what injector may ultimately "store" the object that
-> is calling `getInjectionContext`
+> **_NOTE:_** Effectively this method means the same injector that received the
+> `.get` request which created this object will receive its `.run` requests;
+> currently, this is irrespective of what injector may ultimately "store" the
+> object that is calling `getInjectionContext`
