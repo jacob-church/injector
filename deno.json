@@ -1,9 +1,6 @@
 {
     "name": "@cjc/injector",
     "version": "0.5.0",
-    "tasks": {
-        "dev": "deno run --watch main.ts"
-    },
     "fmt": {
         "indentWidth": 4,
         "exclude": [
@@ -25,7 +22,7 @@
             "./src/**/*.ts",
             "./index.ts"
         ],
-        "exclude": ["./edu", "./src/test/*", "./src/dfs/test.ts"]
+        "exclude": ["./edu", "./src/test/*"]
     },
     "exports": "./index.ts"
 }
