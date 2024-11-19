@@ -14,6 +14,14 @@ import { ProvideKey } from "./providekey.ts";
  *
  * @param key an injectable type (class type or `ProvideKey`)
  * @returns a singleton of type `T`
+ *
+ * Usage:
+ * ```typescript
+ * class A {
+ *  private b = inject(B);
+ * }
+ * class B {}
+ * ```
  */
 export function inject<T>(key: InjectKey<T>): T {
     return Injector.inject(key);
@@ -24,6 +32,14 @@ export function inject<T>(key: InjectKey<T>): T {
  *
  * @param key `ProvideKey<T>`
  * @returns a singleton type `T` or `undefined`
+ *
+ * Usage:
+ * ```typescript
+ * const NumKey = key<number>("NumKey");
+ * class A {
+ *  private num = injectOptional(NumKey);
+ * }
+ * ```
  */
 export function injectOptional<T>(key: ProvideKey<T>): T | undefined {
     try {
@@ -43,6 +59,14 @@ export function injectOptional<T>(key: ProvideKey<T>): T | undefined {
  * @param parent (optional) another injector to defer to when this injector is not specifically configured to handle a requested type
  *
  * @returns a configured Injector
+ *
+ * Usage:
+ * ```typescript
+ * const i = newInjector([
+ *  provide(A).useExisting(MockA),
+ * ]);
+ * i.get(A) // MockA
+ * ```
  */
 export function newInjector(provides?: Provide[], parent?: Injector): Injector {
     return new Injector(provides, parent);
@@ -55,6 +79,16 @@ interface InjectionContext {
  * Saves the active injection context into an object for creating injectable objects after a classes constructor has completed.
  *
  * @returns a valid InjectionContext that can be used at any time
+ *
+ * Usage:
+ * ```typescript
+ * class A {
+ *  private context = getInjectionContext();
+ *  public foo() {
+ *   this.context.run(() => new B());
+ *  }
+ * }
+ * ```
  */
 export function getInjectionContext(): InjectionContext {
     return Injector.getInjectionContext();
@@ -115,6 +149,12 @@ class Injector {
             },
         };
     }
+    /**
+     * @returns the childmost injector (the injector of highest rank)
+     */
+    private static max(a: Injector, b: Injector): Injector {
+        return a.rank > b.rank ? a : b;
+    }
     // a provide that is currently being built, on the next stack frame up
     private static buildingProvide: Built | undefined = undefined;
     // MEMBERS ///////////////////////////////////////////////////////////////
@@ -171,12 +211,13 @@ class Injector {
     private getInContext<T>(key: InjectKey<T>): T {
         InjectionStack.push(key);
         try {
-            const built = this.cache.get(key) ?? this.getOrBuild(key);
+            const built = this.cache.get(key) ?? this.getBuilt(key);
             if (Injector.buildingProvide) {
                 // whenever a key is requested, its essential to tie the dependency
                 // to a higher stack frame if there is one, for correct storage of entries
                 Injector.buildingProvide.deps.push(built);
-                Injector.buildingProvide.holder = built.holder.maxRank(
+                Injector.buildingProvide.holder = Injector.max(
+                    built.holder,
                     Injector.buildingProvide.holder,
                 );
             }
@@ -190,7 +231,7 @@ class Injector {
      * Fetches the most relevant provide and ensures it is ready to serve
      * (Assumes this key is not cached)
      */
-    private getOrBuild<T>(key: InjectKey<T>): Built<T> {
+    private getBuilt<T>(key: InjectKey<T>): Built<T> {
         const provide = this.getProvide(key);
         if (isBuilt(provide) && !this.needsRebuild(provide)) {
             return provide;
@@ -326,12 +367,5 @@ class Injector {
                 this.parent?.cacheBuilt(provide);
             }
         }
-    }
-
-    /**
-     * @returns the childmost injector (the injector of highest rank)
-     */
-    private maxRank(other: Injector): Injector {
-        return this.rank > other.rank ? this : other;
     }
 }

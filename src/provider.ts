@@ -67,7 +67,7 @@ export class Provider<T> {
  * @returns `Provider<T>`
  *
  * Usage:
- * ```
+ * ```typescript
  * // default
  * provide(A).use(() => new A());
  * // factory (same as default)
