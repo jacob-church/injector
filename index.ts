@@ -4,5 +4,5 @@ export {
     injectOptional,
     newInjector,
 } from "./src/injector.ts";
-export { provide } from "./src/provider.ts";
+export { provide, explicitly } from "./src/provider.ts";
 export { key } from "./src/providekey.ts";

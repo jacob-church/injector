@@ -1,4 +1,4 @@
-import type { ConcreteInjectKey, InjectKey } from "./injectkey.ts";
+import type { ConcreteInjectKey, InjectKey, NoArgsCtor } from "./injectkey.ts";
 import { inject } from "./injector.ts";
 import type { Provide } from "./provide.ts";
 
@@ -6,7 +6,7 @@ export class Provider<T> {
     constructor(private readonly key: InjectKey<T>) {}
 
     /**
-     * General purpose function
+     * General purpose function provide function
      */
     public use(factory: () => T): Provide<T> {
         return {
@@ -15,7 +15,7 @@ export class Provider<T> {
         };
     }
     /**
-     * For providing an already constructed object, primitive value, or optional value (not yet implemented)
+     * For providing an already constructed object, primitive value, or optional value
      */
     public useValue(value: T): Provide<T> {
         return {
@@ -34,7 +34,10 @@ export class Provider<T> {
      * (Equivalent to making a separate request to the same injector for the second key)
      *
      * @param key a concrete type
-     * (NOTE: as TypeScript/JavaScript do not currently provide a way to validate that a given type/constructor is abstract at runtime, this function does not allow re-keying to another abstract type, as this can easily lead to constructing an abstract class unintentionally)
+     * (NOTE: as TypeScript/JavaScript do not currently provide a way to validate that a
+     * given type/constructor is abstract at runtime, this function does not allow re-keying
+     * to another abstract type, as this can easily lead to constructing an abstract class
+     * unintentionally)
      */
     public useExisting(key: ConcreteInjectKey<T>): Provide<T> {
         return {
@@ -81,4 +84,25 @@ export class Provider<T> {
  */
 export function provide<T>(key: InjectKey<T>): Provider<T> {
     return new Provider(key);
+}
+
+/**
+ * Quality of life function for "pinning" a concrete type to an injector,
+ * preventing a parent injector from assuming ownership of the built object.
+ *
+ * @param key a constructor with no arguments
+ *
+ * Usage:
+ * ```typescript
+ * class A {}
+ * const parent = newInjector();
+ * const child = parent.child([explicitly(A)]);
+ * child.get(A); // stored in child, not parent
+ * ```
+ */
+export function explicitly<T>(key: NoArgsCtor<T>): Provide<T> {
+    return {
+        key,
+        factory: () => new key(),
+    };
 }
