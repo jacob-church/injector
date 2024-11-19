@@ -8,7 +8,7 @@ import {
 import { getInjectionContext } from "../injectioncontext.ts";
 import { DummyFactory, newInjector } from "../injector.ts";
 import { key } from "../providekey.ts";
-import { provide } from "../provider.ts";
+import { explicitly, provide } from "../provider.ts";
 import { assert } from "./lib.ts";
 
 Deno.test("inject doesn't work outside of injection context", () => {
@@ -547,5 +547,16 @@ Deno.test("child injector function", () => {
     assert(
         a.b instanceof B_,
         "should incorporate child injector configuration",
+    );
+});
+
+Deno.test("explicitly pins a type to an injector", () => {
+    class A {}
+    const parent = newInjector();
+    const child = parent.child([explicitly(A)]);
+
+    assert(
+        parent.get(A) !== child.get(A),
+        "should not share instances of type A",
     );
 });
