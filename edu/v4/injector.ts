@@ -7,6 +7,8 @@ interrelated provides from injectors throughout the hierarchy
 
 */
 
+// TODO: not up to date with canonical implementation
+
 import { dfs } from "../../src/dfs/dfs.ts";
 
 class ProvideKey<T> {
