@@ -9,11 +9,12 @@ import {
 } from "./injecterror.ts";
 import { ProvideKey } from "./providekey.ts";
 import type { ConcreteUnion } from "./types/concreteunion.ts";
-import {
-    type ContextInjectable,
-    DummyFactory,
-    type InjectionContext,
+import type {
+    ContextInjectable,
+    InjectionContext,
 } from "./types/injectioncontext.ts";
+import { DummyFactory } from "./symbols/dummyfactory.ts";
+import { NoImplicitInject } from "../index.ts";
 
 /**
  * Setup an injector
@@ -233,7 +234,17 @@ export class Injector {
         if (this.parent) {
             return this.parent.getProvide(key, backstop);
         }
-        if (key instanceof ProvideKey) {
+
+        return this.implicitProvide(key);
+    }
+
+    private implicitProvide<T>(key: InjectKey<T>): Provided<T> {
+        if (
+            key instanceof ProvideKey ||
+            // deno-lint-ignore no-prototype-builtins
+            (NoImplicitInject in key && key.hasOwnProperty(NoImplicitInject) && // confirm the property is on the object and not its prototype
+                key[NoImplicitInject])
+        ) {
             throw new MissingProvideError(key);
         }
         if (key.length > 0) {

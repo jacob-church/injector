@@ -1,14 +1,10 @@
+import type { DummyFactory } from "../symbols/dummyfactory.ts";
 import type { InjectKey } from "./injectkey.ts";
 
 // deno-lint-ignore no-explicit-any
 export type InjectionContext<T = any> = <Narrowed extends T>(
     fn: () => Narrowed,
 ) => Narrowed;
-
-/**
- * A symbol for marking a class as eligible for serving with `getInjectionContext`
- */
-export const DummyFactory = Symbol("DummyFactory");
 
 interface Dummy<T> {
     value: T;

@@ -6,4 +6,5 @@ export {
     getInjectionContext,
     getUnsafeInjectionContext,
 } from "./src/injectioncontext.ts";
-export { DummyFactory } from "./src/types/injectioncontext.ts";
+export { DummyFactory } from "./src/symbols/dummyfactory.ts";
+export { NoImplicitInject } from "./src/symbols/noimplicitinject.ts";

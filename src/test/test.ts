@@ -1,15 +1,19 @@
-import { getUnsafeInjectionContext } from "../../index.ts";
 import { inject, injectOptional } from "../inject.ts";
 import {
     CyclicDependencyError,
     MissingProvideError,
     TooManyArgsError,
 } from "../injecterror.ts";
-import { getInjectionContext } from "../injectioncontext.ts";
-import { DummyFactory, newInjector } from "../injector.ts";
+import {
+    getInjectionContext,
+    getUnsafeInjectionContext,
+} from "../injectioncontext.ts";
+import { newInjector } from "../injector.ts";
 import { key } from "../providekey.ts";
 import { explicitly, provide } from "../provider.ts";
+import { NoImplicitInject } from "../symbols/noimplicitinject.ts";
 import { assert } from "./lib.ts";
+import { DummyFactory } from "../symbols/dummyfactory.ts";
 
 Deno.test("inject doesn't work outside of injection context", () => {
     class B {}
@@ -559,4 +563,44 @@ Deno.test("explicitly pins a type to an injector", () => {
         parent.get(A) !== child.get(A),
         "should not share instances of type A",
     );
+});
+
+Deno.test("abstract classes can't be used as keys without NoImplicitInject", () => {
+    abstract class Base {
+        public static readonly [NoImplicitInject] = true;
+    }
+
+    class Derived extends Base {
+    }
+
+    class A {
+        public base = inject(Base);
+    }
+
+    const p = newInjector();
+
+    let caught = false;
+    try {
+        p.get(A);
+    } catch (e) {
+        if (e instanceof MissingProvideError) {
+            caught = true;
+        }
+    }
+    assert(caught, "should have thrown MissingProvideError");
+
+    const c = p.child([provide(Base).useExisting(Derived)]);
+
+    caught = false;
+    try {
+        const a = c.get(A);
+        assert(
+            a.base instanceof Derived,
+            "should have correctly injected Derived",
+        );
+    } catch (e) {
+        console.log(e);
+        caught = true;
+    }
+    assert(!caught, "should not have thrown an error");
 });
