@@ -1,4 +1,4 @@
-import type { InjectKey, ProviderRequired } from "./injectkey.ts";
+import type { InjectKey, ProviderRequired } from "./types/injectkey.ts";
 
 export class InjectorError extends Error {
     constructor(message: string, options?: ErrorOptions) {

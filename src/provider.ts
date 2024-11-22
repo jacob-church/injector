@@ -1,6 +1,30 @@
-import type { ConcreteInjectKey, InjectKey } from "./injectkey.ts";
-import { inject } from "./injector.ts";
-import type { Provide } from "./provide.ts";
+import type { ConcreteInjectKey, InjectKey } from "./types/injectkey.ts";
+import { inject } from "./inject.ts";
+import type { Provide } from "./types/provide.ts";
+
+/**
+ * Quality of life function for generating `Provide` objects to configure an
+ * injector.
+ *
+ * @param key an injectable type `T` or `ProvideKey<T>`
+ * @returns `Provider<T>`
+ *
+ * Usage:
+ * ```typescript
+ * // default
+ * provide(A).use(() => new A());
+ * // factory (same as default)
+ * provide(A).useFactory(() => new A());
+ * // value
+ * const a = new A();
+ * provide(A).useValue(a);
+ * // re-key (type substitutions)
+ * provide(A).useExisting(MockA)
+ * ```
+ */
+export function provide<T>(key: InjectKey<T>): Provider<T> {
+    return new Provider(key);
+}
 
 export class Provider<T> {
     constructor(private readonly key: InjectKey<T>) {}
@@ -57,28 +81,4 @@ export class Provider<T> {
             factory: () => inject(existingFactory()),
         };
     }
-}
-
-/**
- * Quality of life function for generating `Provide` objects to configure an
- * injector.
- *
- * @param key an injectable type `T` or `ProvideKey<T>`
- * @returns `Provider<T>`
- *
- * Usage:
- * ```typescript
- * // default
- * provide(A).use(() => new A());
- * // factory (same as default)
- * provide(A).useFactory(() => new A());
- * // value
- * const a = new A();
- * provide(A).useValue(a);
- * // re-key (type substitutions)
- * provide(A).useExisting(MockA)
- * ```
- */
-export function provide<T>(key: InjectKey<T>): Provider<T> {
-    return new Provider(key);
 }
