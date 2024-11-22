@@ -125,17 +125,31 @@ const a = child.get(A); // returns an `A` distinct from any `A` in the parent, s
 ### Injecting outside of the constructor context
 
 It is possible to save off the injection context which created a specific object
-for use at other arbitrary times with `getInjectionContext`:
+for use at other arbitrary times with `getInjectionContext`. Doing so safely
+requires telling `getInjectionContext` what types you will use it to create, and
+defining a `DummyFactory` on those types so the injector can correctly evaluate
+where the calling object should be stored in the injector hierarchy.
+
+(`getInjectionContext` accomplishes this by using the dummy factory to eagerly
+make a dummy object, revealing its dependencies)
 
 ```typescript
-class Z { public x = inject(X)}
+class Z { 
+    public static [DummyFactory]() {
+        return {
+            value: new Z(),
+            cleanup: () => {/* safe disposal logic*/}
+        }
+    }
+    public x = inject(X)
+}
 class X {}
 
 class A {
-  private context = getInjectionContext();
+  private context = getInjectionContext(Z);
 
   public foo(): {
-    const z = context.run(() => inject(Z));
+    const z = this.context(() => new Z());
     // ...
   }
 }
@@ -147,6 +161,12 @@ rely on some otherwise injectable state:
 
 ```typescript
 class Ship {
+    public static [DummyFactory]() {
+        return {
+            value: new Ship({} as ShipConfig),
+            cleanup: () => {},
+        };
+    }
     private shipSerializer = inject(ShipSerializer);
     constructor(private shipConfig: ShipConfig) {}
 }
@@ -159,7 +179,8 @@ class Fleet {
 }
 ```
 
-> **_NOTE:_** Effectively this method means the same injector that received the
-> `.get` request which created this object will receive its `.run` requests;
-> currently, this is irrespective of what injector may ultimately "store" the
-> object that is calling `getInjectionContext`
+If declaring what you will create ahead of time, or running the construction
+logic of such a type, is too onerous, you can take life into your own hands with
+`getUnsafeInjectionContext`. This is not recommended however, as it may result
+in objects being stored in the incorrect injector. Choose wisely! And make
+absolutely certain you know what you're doing!
