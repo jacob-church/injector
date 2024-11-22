@@ -40,6 +40,8 @@ export function getInjectionContext<
  *
  * @returns a valid InjectionContext that can be used at any time
  *
+ * **WARNING:** this method can lead to storage errors if used incorrectly. Use with caution.
+ *
  * Usage:
  * ```typescript
  * class B {}
@@ -50,8 +52,6 @@ export function getInjectionContext<
  *  }
  * }
  * ```
- *
- * **WARNING:** this method can lead to storage errors if used incorrectly. Use with caution.
  */
 export function getUnsafeInjectionContext(): InjectionContext {
     return Injector.getUnsafeInjectionContext();

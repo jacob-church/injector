@@ -1,9 +1,8 @@
-import type { InjectKey } from "./types/injectkey.ts";
+import type { InjectKey, ProviderRequired } from "./types/injectkey.ts";
 import { MissingProvideError } from "./injecterror.ts";
-import type { ProvideKey } from "./providekey.ts";
 import { Injector } from "./injector.ts";
 /**
- * When used within an active injection context (under a `.get` on a real injector) returns a singleton of type T from the active injection context
+ * When used within an active injection context (under a `.get` on a real injector) returns a singleton of the requested type from the active injection context
  *
  * @param key an injectable type (class type or `ProvideKey`)
  * @returns a singleton of type `T`
@@ -21,7 +20,7 @@ export function inject<T>(key: InjectKey<T>): T {
 }
 
 /**
- * As `inject`, but if the injected key is not provided, returns `undefined` instead. Only for `ProvideKey`s
+ * As `inject`, but if the injected key is not provided, returns `undefined` instead. Only for `ProvideKey`s and abstract classes.
  *
  * @param key `ProvideKey<T>`
  * @returns a singleton type `T` or `undefined`
@@ -34,7 +33,7 @@ export function inject<T>(key: InjectKey<T>): T {
  * }
  * ```
  */
-export function injectOptional<T>(key: ProvideKey<T>): T | undefined {
+export function injectOptional<T>(key: ProviderRequired<T>): T | undefined {
     try {
         return inject(key);
     } catch (error) {

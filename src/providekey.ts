@@ -1,6 +1,5 @@
 /**
- * An injectable token for providing optional injectables (not yet implemented)
- * or non-constructable types (e.g. primitives)
+ * An injectable token for providing optional injectables or non-constructable types (e.g. primitives)
  *
  * @param name an identifier for this key (for use in stack traces)
  * @returns a `ProvideKey<T>` suitable for passing to `inject`
