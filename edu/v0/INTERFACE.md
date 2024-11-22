@@ -39,3 +39,5 @@ context? **Things that happen within a call to `injector.get`.** So long as we
 have a concrete instance of an injector, and the first request came through "the
 front door", as it were, `inject` will be primed to serve whatever we ask it
 for.
+
+> **NEXT** - [Singletons](../v1/SINGLETONS.md)

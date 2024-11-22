@@ -135,3 +135,5 @@ overshadow's the built one.)
 
 And that's it! From that point, comparing ranks is trivial, and the first hit is
 a sure sign that re-building is needed.
+
+> **NEXT** - [Performance](../v5/PERFORMANCE.md)

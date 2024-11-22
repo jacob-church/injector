@@ -41,3 +41,5 @@ class Widget {
 
 **_NOTE:_** Recognize that in doing this class `A` takes full responsibility for
 the management of it's `Widget`'s. The injector does not store them.
+
+> **NEXT** - [Substitutions](../v2/SUBSTITUTION.md)

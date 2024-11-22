@@ -85,3 +85,5 @@ Stare at that for a minute, then zero in on the table. If you ask an injector
 `x` for type `Y`, what will you get? Asking `p` for an `A` gets you a simple
 `A`, but asking _`c`_ for it takes you on a _journey_. First, substitute for an
 `A'`, but then `p` chimes in to say its going to be an `A''` instead!
+
+> **NEXT** - [Correctness](../v4/CORRECTNESS.md)
