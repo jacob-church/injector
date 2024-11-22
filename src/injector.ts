@@ -9,6 +9,11 @@ import {
 } from "./injecterror.ts";
 import { ProvideKey } from "./providekey.ts";
 import type { ConcreteUnion } from "./types/concreteunion.ts";
+import {
+    type ContextInjectable,
+    DummyFactory,
+    type InjectionContext,
+} from "./types/injectioncontext.ts";
 
 /**
  * Setup an injector
@@ -46,19 +51,6 @@ type Built<T = unknown> = Provided<T> & {
 function isBuilt<T>(provide: Provided<T>): provide is Built<T> {
     return typeof provide.deps !== "undefined";
 }
-
-// deno-lint-ignore no-explicit-any
-export type InjectionContext<T = any> = <Narrowed extends T>(
-    fn: () => Narrowed,
-) => Narrowed;
-export const DummyFactory = Symbol("DummyFactory");
-interface Dummy<T> {
-    value: T;
-    cleanup: () => void;
-}
-export type ContextInjectable<T = unknown> = InjectKey<T> & {
-    [DummyFactory]: () => Dummy<T>;
-};
 
 const InjectionContextError =
     "No active injection context. Create an injector with `newInjector`.";

@@ -1,6 +1,6 @@
 {
     "name": "@cjc/injector",
-    "version": "0.7.2",
+    "version": "0.7.3",
     "fmt": {
         "indentWidth": 4,
         "exclude": [

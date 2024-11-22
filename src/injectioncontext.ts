@@ -1,9 +1,9 @@
-import {
-    type ContextInjectable,
-    type InjectionContext,
-    Injector,
-} from "./injector.ts";
+import { Injector } from "./injector.ts";
 import type { ConcreteUnion } from "./types/concreteunion.ts";
+import type {
+    ContextInjectable,
+    InjectionContext,
+} from "./types/injectioncontext.ts";
 
 /**
  * Saves the active injection context into an object for creating injectable objects after a classes constructor has completed.
