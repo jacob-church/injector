@@ -13,6 +13,4 @@ export type AbstractCtor<T> = (abstract new (...args: any[]) => T) & {
 
 export type InjectKey<T = unknown> = AbstractCtor<T> | Ctor<T> | ProvideKey<T>;
 
-export type ConcreteInjectKey<T = unknown> = Ctor<T> | ProvideKey<T>;
-
 export type ProviderRequired<T = unknown> = ProvideKey<T> | AbstractCtor<T>;

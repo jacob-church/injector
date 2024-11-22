@@ -604,3 +604,24 @@ Deno.test("abstract classes can't be used as keys without NoImplicitInject", () 
     }
     assert(!caught, "should not have thrown an error");
 });
+
+Deno.test("allow chains of useExisting on abstract classes", () => {
+    abstract class Root {
+        public static readonly [NoImplicitInject] = true;
+    }
+    abstract class Base extends Root {
+        public static override readonly [NoImplicitInject] = true;
+    }
+    class Derived extends Base {}
+
+    let caught = false;
+    try {
+        newInjector([
+            provide(Root).useExisting(Base),
+            provide(Base).useExisting(Derived),
+        ]).get(Root);
+    } catch {
+        caught = true;
+    }
+    assert(!caught, "should not have thrown an error");
+});
