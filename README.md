@@ -2,6 +2,8 @@
 
 A TypeScript dependency injector, written with Deno.
 
+([**Learn More**](./EDU.md))
+
 [![JSR Version](https://jsr.io/badges/@cjc/injector)](https://jsr.io/@cjc/injector)
 [![JSR Score](https://jsr.io/badges/@cjc/injector/score)](https://jsr.io/@cjc/injector/score)
 [![ci](https://github.com/jacob-church/injector/actions/workflows/publish.yml/badge.svg)](https://github.com/jacob-church/injector/actions/workflows/publish.yml)
