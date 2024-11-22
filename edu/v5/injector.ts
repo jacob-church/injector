@@ -108,15 +108,22 @@ class Injector {
         return this.getFirstOverridingInjector(entry, entry.owner)[1];
     }
 
-    private getFirstOverridingInjector(built: Built, firstOwningInjector: Injector): [Injector | undefined, boolean] {
+    private getFirstOverridingInjector(
+        built: Built,
+        firstOwningInjector: Injector,
+    ): [Injector | undefined, boolean] {
         // v5 - whether by previous build at this injector, or just an overshadowing provide,
         // we see if there is a provide that is higher ranked than the build record
-        const entry = this.cache.get(built.key) ?? this.getEntry(built.key, firstOwningInjector);
+        const entry = this.cache.get(built.key) ??
+            this.getEntry(built.key, firstOwningInjector);
         if (entry && entry.owner.rank > firstOwningInjector.rank) {
             return [entry.owner, false];
         }
         for (const dep of built.deps) {
-            const [injector, needsRebuild] = this.getFirstOverridingInjector(dep, firstOwningInjector);
+            const [injector, needsRebuild] = this.getFirstOverridingInjector(
+                dep,
+                firstOwningInjector,
+            );
             if (injector) {
                 // v5 - writing fresh provides into the overriding injector ensures that future calls
                 // to needsRebuild are avoided for every key between here and the first entry that called this method
@@ -135,7 +142,7 @@ class Injector {
             key: provide.key,
             factory: provide.factory,
             owner: this,
-        })
+        });
     }
 
     private getEntry<T>(

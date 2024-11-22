@@ -1,8 +1,3 @@
-export class ProvideKey<T> {
-    declare private compileType: T;
-    constructor(public readonly name: string) {}
-}
-
 /**
  * An injectable token for providing optional injectables (not yet implemented)
  * or non-constructable types (e.g. primitives)
@@ -19,4 +14,9 @@ export class ProvideKey<T> {
  */
 export function key<T>(name: string): ProvideKey<T> {
     return new ProvideKey<T>(name);
+}
+
+export class ProvideKey<T> {
+    declare private compileType: T;
+    constructor(public readonly name: string) {}
 }

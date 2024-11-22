@@ -1,14 +1,12 @@
+import { getUnsafeInjectionContext } from "../../index.ts";
+import { inject, injectOptional } from "../inject.ts";
 import {
     CyclicDependencyError,
     MissingProvideError,
     TooManyArgsError,
 } from "../injecterror.ts";
-import {
-    getInjectionContext,
-    inject,
-    injectOptional,
-    newInjector,
-} from "../injector.ts";
+import { getInjectionContext } from "../injectioncontext.ts";
+import { DummyFactory, newInjector } from "../injector.ts";
 import { key } from "../providekey.ts";
 import { provide } from "../provider.ts";
 import { assert } from "./lib.ts";
@@ -328,30 +326,108 @@ Deno.test("injectOptional", async (test) => {
     });
 });
 
-Deno.test("getInjectionContext", () => {
-    class A {
-        public b?: B;
-        public context = getInjectionContext();
-
-        public functionThatMakesB() {
-            this.b = this.context.run(() => new B());
-        }
-    }
+Deno.test("getInjectionContext", async (test) => {
     class B {
         public c = inject(C);
     }
-    class C {}
-
-    let caught = false;
-    const a = newInjector().get(A);
-    assert(a.b === undefined, "B is not initialized");
-    try {
-        a.functionThatMakesB();
-    } catch {
-        caught = true;
+    class SafeB {
+        public static [DummyFactory]() {
+            return {
+                value: new SafeB(),
+                cleanup: () => {},
+            };
+        }
+        public c = inject(C);
     }
-    assert(!caught, "shouldn't fail when using an injection context");
-    assert(a.b instanceof B, "should correctly use injection context");
+    class C {}
+    await test.step("unsafe", () => {
+        class A {
+            public b?: B;
+            public context = getUnsafeInjectionContext();
+
+            public functionThatMakesB() {
+                this.b = this.context(() => new B());
+            }
+        }
+
+        let caught = false;
+        const a = newInjector().get(A);
+        assert(a.b === undefined, "B is not initialized");
+        try {
+            a.functionThatMakesB();
+        } catch (e) {
+            console.log(e);
+            caught = true;
+        }
+        assert(!caught, "shouldn't fail when using an injection context");
+        assert(a.b instanceof B, "should correctly use injection context");
+    });
+
+    await test.step("safe", () => {
+        class A {
+            public b?: SafeB;
+            public context = getInjectionContext(SafeB);
+
+            public functionThatMakesB() {
+                this.b = this.context(() => new SafeB());
+            }
+        }
+
+        let caught = false;
+        const a = newInjector().get(A);
+        assert(a.b === undefined, "B is not initialized");
+        try {
+            a.functionThatMakesB();
+        } catch {
+            caught = true;
+        }
+        assert(!caught, "shouldn't fail when using an injection context");
+        assert(a.b instanceof SafeB, "should correctly use injection context");
+    });
+
+    await test.step("safe usage results in correct storage", () => {
+        class A {
+            public b?: SafeB;
+            public context = getInjectionContext(SafeB);
+
+            public functionThatMakesB() {
+                this.b = this.context(() => new SafeB());
+            }
+        }
+
+        const p = newInjector();
+        const c = p.child([provide(C).use(() => new C())]);
+        const pA = p.get(A);
+        const cA = c.get(A);
+        assert(pA !== cA, "should make different instances of A");
+        pA.functionThatMakesB();
+        cA.functionThatMakesB();
+        assert(pA.b !== cA.b, "should make different instances of B");
+        assert(pA.b?.c !== cA.b?.c, "should make different instances of C");
+    });
+
+    await test.step("unsafe usage results in dangerous, incorrect storage", () => {
+        class A {
+            public b?: B;
+            public context = getUnsafeInjectionContext();
+
+            public functionThatMakesB() {
+                this.b = this.context(() => new B());
+            }
+        }
+        class C_ extends C {}
+
+        const p = newInjector();
+        const c = p.child([provide(C).use(() => inject(C_))]);
+        const cA = c.get(A); // order matters here, it means the wrong context is saved
+        const pA = p.get(A);
+        assert(pA === cA, "should make same instances of A"); // This is bad news!
+        pA.functionThatMakesB();
+        assert(
+            pA.b?.c instanceof C_,
+            "should pollute the parent injector with objects made under the influence of the child injector",
+        );
+    });
 });
 
 Deno.test("correct dependency recording on previously built keys", () => {
