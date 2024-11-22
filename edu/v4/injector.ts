@@ -7,10 +7,6 @@ interrelated provides from injectors throughout the hierarchy
 
 */
 
-// TODO: not up to date with canonical implementation
-
-import { dfs } from "../../src/dfs/dfs.ts";
-
 class ProvideKey<T> {
     constructor(public readonly name: string) {}
 }
@@ -18,8 +14,9 @@ export function key<T>(name: string) {
     return new ProvideKey<T>(name);
 }
 
-type Structor<T> = new () => T;
-type InjectKey<T = unknown> = ProvideKey<T> | Structor<T>;
+type Ctor<T> = new () => T;
+type Abstract<T> = abstract new () => T;
+type InjectKey<T = unknown> = ProvideKey<T> | Ctor<T> | Abstract<T>;
 
 interface Provide<T = unknown> {
     key: InjectKey<T>;
@@ -43,35 +40,35 @@ export function provide<T>(key: InjectKey<T>): Provider<T> {
     return new Provider(key);
 }
 
-type Provided<T = unknown> = Provide<T> & {
-    holder: Injector;
+type Entry<T = unknown> = Provide<T> & {
+    owner: Injector;
     explicitly?: true;
     value?: T;
     deps?: Built[];
 };
-type Built<T = unknown> = Provided<T> & {
+type Built<T = unknown> = Entry<T> & {
     value: T;
     deps: Built[];
 };
-function isBuilt<T>(provide: Provided<T>): provide is Built<T> {
-    return typeof provide.deps !== "undefined";
+function isBuilt<T>(entry: Entry<T>): entry is Built<T> {
+    return typeof entry.deps !== "undefined"; // more resilient to minification
 }
 
 class Injector {
+    // v4 - allows for piggy backing on the call stack to track what is being built
     private static buildingProvide: Built | undefined = undefined;
 
-    private provides = new Map<InjectKey, Provided>();
-    private rank: number;
+    private entries = new Map<InjectKey, Entry>();
+    private rank: number; // allows quick comparison of injectors in a hierarchy at minimal cost
 
     constructor(provides: Provide[] = [], private parent?: Injector) {
         for (const provide of provides) {
-            this.provides.set(provide.key, {
+            this.entries.set(provide.key, {
                 ...provide,
-                holder: this,
-                explicitly: true,
+                owner: this,
             });
         }
-        this.rank = this.parent ? this.parent.rank + 1 : 0;
+        this.rank = this.parent ? this.parent.rank + 1 : 0; // simple to calculate at construction
     }
 
     public get<T>(key: InjectKey<T>): T {
@@ -85,79 +82,63 @@ class Injector {
     }
 
     private getInContext<T>(key: InjectKey<T>): T {
-        const built = this.getOrBuild(key);
+        const built = this.getBuilt(key);
         if (Injector.buildingProvide) {
             Injector.buildingProvide.deps.push(built);
-            Injector.buildingProvide.holder = built.holder.maxRank(
-                Injector.buildingProvide.holder,
+            // v4 - piggy backing on the stack some more, update each entries owner based on who owns their child
+            Injector.buildingProvide.owner = built.owner.maxRank(
+                Injector.buildingProvide.owner,
             );
         }
         return built.value as T;
     }
 
-    private getOrBuild<T>(key: InjectKey<T>): Built<T> {
-        const provide = this.getProvide(key)!;
-        if (
-            isBuilt(provide) &&
-            provide.holder == this.findHolder(provide)
-        ) {
-            return provide;
+    private getBuilt<T>(key: InjectKey<T>): Built<T> {
+        const entry = this.getEntry(key)!;
+        if (isBuilt(entry) && !this.needsRebuild(entry, entry.owner.rank)) {
+            return entry;
         }
-        return this.buildAndStore(provide);
+        return this.build(entry);
     }
 
-    private getProvide<T>(
+    // v4 - in cases where a parent injector build record is being used, we need to check
+    // for overshadowing provides in higher ranked injectors to determine if a new copy
+    // of the requested object is needed to safely store in the higher injector with
+    // correct, provided dependencies
+    private needsRebuild(built: Built, firstRank: number): boolean {
+        if (this.getEntry(built.key).owner.rank > firstRank) {
+            return true;
+        }
+
+        return built.deps.some((dep) => this.needsRebuild(dep, firstRank));
+    }
+
+    private getEntry<T>(
         key: InjectKey<T>,
-    ): Provided<T> | undefined {
-        const provide = this.provides.get(key);
-        if (provide) {
-            return provide as Provided<T>;
-        }
-        if (this.parent) {
-            return this.parent.getProvide(key);
-        }
-        return {
+    ): Entry<T> {
+        return this.entries.get(key) as Entry<T> ??
+            this.parent?.getEntry(key) ?? {
             key,
-            factory: () => new (key as Structor<T>)(),
-            holder: this,
+            factory: () => new (key as Ctor<T>)(),
+            owner: this,
         };
     }
 
-    private findHolder(provide: Built) {
-        let holder = provide.holder;
-        const visited = new Set<Provided>();
-        dfs(provide.deps, (dep: Built) => {
-            if (visited.has(dep)) {
-                return [];
-            }
-            visited.add(dep);
-
-            const highestProvide = this.getProvide(dep.key);
-            if (highestProvide) {
-                holder = holder.maxRank(highestProvide.holder);
-            }
-            if (holder == this) {
-                return "stop";
-            }
-            return dep.deps;
-        });
-
-        return holder;
-    }
-
-    private buildAndStore<T>(provide: Provided<T>): Built<T> {
-        const built = { ...provide, deps: [] } as Built<T>;
-        const prevBuildingProvide = Injector.buildingProvide;
+    // v4 - taking advantage of the call stack, we can trace the edges of a class hierarchy mid build
+    private build<T>(entry: Entry<T>): Built<T> {
+        const built = { ...entry, deps: [] } as Built<T>;
+        const prev = Injector.buildingProvide;
         Injector.buildingProvide = built;
         try {
             built.value = built.factory();
         } finally {
-            Injector.buildingProvide = prevBuildingProvide;
+            Injector.buildingProvide = prev;
         }
-        built.holder.provides.set(built.key, built);
+        built.owner.entries.set(built.key, built);
         return built;
     }
 
+    // v4 - simple comparison of injectors
     private maxRank(other: Injector): Injector {
         return this.rank > other.rank ? this : other;
     }

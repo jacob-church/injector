@@ -8,9 +8,6 @@ been done, and agressively pursues optimal performance
 
 */
 
-// TODO: this file is out of date
-import { dfs, type Frame } from "../../dfs/dfs/dfs.ts";
-
 class ProvideKey<T> {
     constructor(public readonly name: string) {}
 }
@@ -18,8 +15,9 @@ export function key<T>(name: string) {
     return new ProvideKey<T>(name);
 }
 
-type Structor<T> = new () => T;
-type InjectKey<T = unknown> = ProvideKey<T> | Structor<T>;
+type Ctor<T> = new () => T;
+type Abstract<T> = abstract new () => T;
+type InjectKey<T = unknown> = ProvideKey<T> | Ctor<T> | Abstract<T>;
 
 interface Provide<T = unknown> {
     key: InjectKey<T>;
@@ -43,21 +41,21 @@ export function provide<T>(key: InjectKey<T>): Provider<T> {
     return new Provider(key);
 }
 
-type Provided<T = unknown> = Provide<T> & {
-    holder: Injector;
-    explicitly?: true;
+type Entry<T = unknown> = Provide<T> & {
+    owner: Injector;
     value?: T;
     deps?: Built[];
 };
-type Built<T = unknown> = Provided<T> & {
+type Built<T = unknown> = Entry<T> & {
     value: T;
     deps: Built[];
 };
-function isBuilt<T>(provide: Provided<T>): provide is Built<T> {
+function isBuilt<T>(provide: Entry<T>): provide is Built<T> {
     return typeof provide.deps !== "undefined";
 }
 
 class Injector {
+    // v5 - containing these values and functions in the class secures the global injector context value from fiddling
     private static context: Injector | undefined = undefined;
     public static inject<T>(key: InjectKey<T>): T {
         if (!Injector.context) {
@@ -67,17 +65,12 @@ class Injector {
     }
     private static buildingProvide: Built | undefined = undefined;
 
-    private provides = new Map<InjectKey, Provided>();
-    private cache = new Map<InjectKey, Built>();
+    private entries = new Map<InjectKey, Entry>();
     private rank: number;
+    // v5 - a more immediate cache that answers "has this type ever been requested by THIS injector before"
+    private cache = new Map<InjectKey, Built>();
     constructor(provides: Provide[] = [], private parent?: Injector) {
-        for (const provide of provides) {
-            this.provides.set(provide.key, {
-                ...provide,
-                holder: this,
-                explicitly: true,
-            });
-        }
+        provides.forEach((p) => this.setLocalEntry(p));
         this.rank = this.parent ? this.parent.rank + 1 : 0;
     }
 
@@ -92,95 +85,82 @@ class Injector {
     }
 
     private getInContext<T>(key: InjectKey<T>): T {
-        const built = this.cache.get(key) ?? this.getOrBuild(key);
+        // v5 - object built by this injector are returned lightning fast
+        const built = this.cache.get(key) as Built<T> ?? this.getBuilt(key);
         if (Injector.buildingProvide) {
             Injector.buildingProvide.deps.push(built);
-            Injector.buildingProvide.holder = built.holder.maxRank(
-                Injector.buildingProvide.holder,
+            Injector.buildingProvide.owner = built.owner.maxRank(
+                Injector.buildingProvide.owner,
             );
         }
-        return built.value as T;
+        return built.value;
     }
 
-    private getOrBuild<T>(key: InjectKey<T>): Built<T> {
-        const provide = this.getProvide(key)!;
-        if (
-            isBuilt(provide) &&
-            provide.holder == this.findHolder(provide)
-        ) {
-            this.cacheProvide(provide);
-            return provide;
+    private getBuilt<T>(key: InjectKey<T>): Built<T> {
+        const entry = this.getEntry(key)!;
+        if (isBuilt(entry) && !this.needsRebuild(entry)) {
+            return entry;
         }
-        return this.buildAndStore(provide);
+        return this.build(entry);
     }
 
-    private getProvide<T>(
+    private needsRebuild(entry: Built): boolean {
+        return this.getFirstOverridingInjector(entry, entry.owner)[1];
+    }
+
+    private getFirstOverridingInjector(built: Built, firstOwningInjector: Injector): [Injector | undefined, boolean] {
+        // v5 - whether by previous build at this injector, or just an overshadowing provide,
+        // we see if there is a provide that is higher ranked than the build record
+        const entry = this.cache.get(built.key) ?? this.getEntry(built.key, firstOwningInjector);
+        if (entry && entry.owner.rank > firstOwningInjector.rank) {
+            return [entry.owner, false];
+        }
+        for (const dep of built.deps) {
+            const [injector, needsRebuild] = this.getFirstOverridingInjector(dep, firstOwningInjector);
+            if (injector) {
+                // v5 - writing fresh provides into the overriding injector ensures that future calls
+                // to needsRebuild are avoided for every key between here and the first entry that called this method
+                needsRebuild && injector.setLocalEntry(dep);
+                return [injector, true];
+            }
+        }
+        // determining that previously built entries are not overshadowed in this injector also means
+        // future requests can return lightning fast
+        this.cacheBuilt(built);
+        return [undefined, false];
+    }
+
+    private setLocalEntry(provide: Provide): void {
+        this.entries.set(provide.key, {
+            key: provide.key,
+            factory: provide.factory,
+            owner: this,
+        })
+    }
+
+    private getEntry<T>(
         key: InjectKey<T>,
-        backstop?: Injector | undefined,
-    ): Provided<T> | undefined {
-        const provide = this.cache.get(key) ?? this.provides.get(key);
-        if (provide) {
-            return provide as Provided<T>;
+        backstop?: Injector | undefined, // v5 - allows for slightly truncating these plunges looking for provides
+    ): Entry<T> | undefined {
+        const entry = this.cache.get(key) ?? this.entries.get(key);
+        if (entry) {
+            return entry as Entry<T>;
         }
         if (this == backstop) {
             return undefined;
         }
         if (this.parent) {
-            return this.parent.getProvide(key, backstop);
+            return this.parent.getEntry(key, backstop);
         }
         return {
             key,
-            factory: () => new (key as Structor<T>)(),
-            holder: this,
+            factory: () => new (key as Ctor<T>)(),
+            owner: this,
         };
     }
 
-    private findHolder(provide: Built) {
-        let holder = provide.holder;
-        const visited = new Set<Provided>();
-        dfs(provide.deps, (_, frame: Frame<Built>) => {
-            const [dep, prev] = frame;
-            if (visited.has(dep)) {
-                return [];
-            }
-            visited.add(dep);
-
-            const cached = this.cache.get(dep.key);
-            if (cached) {
-                holder = holder.maxRank(cached.holder);
-                return [];
-            }
-
-            const highestProvide = this.getProvide(dep.key, holder);
-            if (highestProvide) {
-                if (highestProvide?.explicitly && !isBuilt(highestProvide)) {
-                    this._buildStack([highestProvide, prev]);
-                }
-                holder = holder.maxRank(highestProvide.holder);
-            }
-            if (holder == this) {
-                this._buildStack([dep, prev]);
-                return "stop";
-            }
-            return dep.deps;
-        });
-        return holder;
-    }
-
-    private _buildStack(frame: Frame<Provided> | undefined) {
-        if (!frame) {
-            return;
-        }
-        const [provide, prev] = frame;
-        if (this.cache.has(provide.key)) {
-            return;
-        }
-        this.buildAndStore(provide);
-        this._buildStack(prev);
-    }
-
-    private buildAndStore<T>(provide: Provided<T>): Built<T> {
-        const built = { ...provide, deps: [] } as Built<T>;
+    private build<T>(entry: Entry<T>): Built<T> {
+        const built = { ...entry, deps: [] } as Built<T>;
         const prevBuildingProvide = Injector.buildingProvide;
         Injector.buildingProvide = built;
         try {
@@ -188,16 +168,19 @@ class Injector {
         } finally {
             Injector.buildingProvide = prevBuildingProvide;
         }
-        built.holder.provides.set(built.key, built);
-        this.cacheProvide(built);
+        built.owner.entries.set(built.key, built);
+        // v5 - whenever an object is built, we cache it for lightning fast returns on future requests
+        this.cacheBuilt(built);
         return built;
     }
 
-    private cacheProvide<T>(provide: Built<T>): void {
-        if (!this.cache.has(provide.key)) {
-            this.cache.set(provide.key, provide);
-            if (this !== provide.holder) {
-                this.parent?.cacheProvide(provide);
+    // v5 - let every injector between this and the owning injector know that this
+    // entry has been assigned once and for all
+    private cacheBuilt<T>(built: Built<T>): void {
+        if (!this.cache.has(built.key)) {
+            this.cache.set(built.key, built);
+            if (this !== built.owner) {
+                this.parent?.cacheBuilt(built);
             }
         }
     }

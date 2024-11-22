@@ -14,8 +14,9 @@ export function key<T>(name: string) {
     return new ProvideKey<T>(name);
 }
 
-type Structor<T> = new () => T;
-type InjectKey<T = unknown> = ProvideKey<T> | Structor<T>;
+type Ctor<T> = new () => T;
+type Abstract<T> = abstract new () => T;
+type InjectKey<T = unknown> = ProvideKey<T> | Ctor<T> | Abstract<T>;
 
 interface Provide<T = unknown> {
     key: InjectKey<T>;
@@ -39,73 +40,61 @@ export function provide<T>(key: InjectKey<T>): Provider<T> {
     return new Provider(key);
 }
 
-type Provided<T = unknown> = Provide<T> & {
-    holder: Injector;
-    explicitly?: true;
+type Entry<T = unknown> = Provide<T> & {
+    owner: Injector;
     value?: T;
-    built?: true;
 };
-type Built<T = unknown> = Provided<T> & {
+type Built<T = unknown> = Entry<T> & {
     value: T;
-    built: true;
 };
-function isBuilt<T>(provide: Provided<T>): provide is Built<T> {
-    return typeof provide.built !== "undefined";
+function isBuilt<T>(provide: Entry<T>): provide is Built<T> {
+    return "value" in provide;
 }
 
 class Injector {
-    private provides = new Map<InjectKey, Provided>();
+    private entries = new Map<InjectKey, Entry>();
 
     constructor(provides: Provide[] = [], private parent?: Injector) {
-        for (const provide of provides) {
-            this.provides.set(provide.key, {
-                ...provide,
-                holder: this,
-                explicitly: true,
+        provides.forEach((p) => {
+            this.entries.set(p.key, {
+                ...p,
+                owner: this,
             });
-        }
+        });
     }
 
     public get<T>(key: InjectKey<T>): T {
-        const prevInjector = activeInjector;
+        const prev = activeInjector;
         activeInjector = this;
         try {
             return this.getInContext(key);
         } finally {
-            activeInjector = prevInjector;
+            activeInjector = prev;
         }
     }
 
     private getInContext<T>(key: InjectKey<T>): T {
-        const provide = this.getOrBuild(key);
-        return provide.value as T;
+        const built = this.getBuilt(key);
+        return built.value;
     }
 
-    private getOrBuild<T>(key: InjectKey<T>): Built<T> {
-        const provide = this.getProvide(key);
-        if (isBuilt(provide)) {
-            return provide;
+    private getBuilt<T>(key: InjectKey<T>): Built<T> {
+        const entry = this.getEntry(key);
+        if (isBuilt(entry)) {
+            return entry;
         }
-        provide.value = provide.factory();
-        provide.built = true;
-        provide.holder.provides.set(provide.key, provide);
-        return provide as Built<T>;
+        entry.value = entry.factory();
+        entry.owner.entries.set(entry.key, entry); // since an entry may be fabricated, it needs to be stored in the correct place
+        return entry as Built<T>;
     }
 
-    private getProvide<T>(
-        key: InjectKey<T>,
-    ): Provided<T> {
-        const provide = this.provides.get(key);
-        if (provide) {
-            return provide as Provided<T>;
-        }
-        if (this.parent) {
-            return this.parent.getProvide(key);
-        }
-        return {
+    // v3 - search for provides, starting from the current injector; child injectors overshadow parent injectors
+    private getEntry<T>(key: InjectKey<T>): Entry<T> {
+        return this.entries.get(key) as Entry<T> ??
+            this.parent?.getEntry(key) ?? {
             key,
-            factory: () => new (key as Structor<T>)(),
-            holder: this,
+            factory: () => new (key as Ctor<T>)(),
+            owner: this, // falling to the root injector implies universal context, and ownership at the lowest level
         };
     }
 }

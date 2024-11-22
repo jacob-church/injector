@@ -294,29 +294,30 @@ class Injector {
      * .provides to speedup future lookups
      */
     private getFirstOverridingInjector(
-        provide: Built,
+        built: Built,
         currHolder: Injector,
         visited: Set<InjectKey> = new Set(),
     ): [Injector | undefined, boolean] {
-        if (visited.has(provide.key)) {
+        if (visited.has(built.key)) {
             return [undefined, false];
         }
-        visited.add(provide.key);
+        visited.add(built.key);
 
         // Step 1. check for overriding provide
-        const depProvide = this.cache.get(provide.key) ??
-            this.getProvide(provide.key, currHolder);
-        if (depProvide && depProvide.holder.rank > currHolder.rank) {
+        const cached = this.cache.get(built.key);
+        const provide = cached ??
+            this.getProvide(built.key, currHolder);
+        if (provide && provide.holder.rank > currHolder.rank) {
             // any provider that is higher in the hierarchy than the provider
             // we kicked this off with is an indication rebuilding is necessary
-            return [depProvide.holder, false];
-        } else if (this.cache.has(provide.key)) {
-            // cached keys are already assigned fully by this injector, so continuing is not needed
+            return [provide.holder, false];
+        } else if (cached) {
+            // cached keys are already assigned fully by this injector, so continuing is not needed either way
             return [undefined, false];
         }
 
         // Step 2. recurse
-        for (const dep of provide.deps) {
+        for (const dep of built.deps) {
             const [overrideInjector, overwriteProvide] = this
                 .getFirstOverridingInjector(dep, currHolder, visited);
             if (overrideInjector) {
@@ -329,7 +330,7 @@ class Injector {
 
         // Step 3. reaching this point indicates no overriding provide was found, so we've
         // effectively determined "needRebuild" for this provide as well
-        this.cacheBuilt(provide);
+        this.cacheBuilt(built);
         return [undefined, false];
     }
 
