@@ -59,8 +59,7 @@ class UniqueStack {
 }
 export const InjectionStack: UniqueStack = new UniqueStack();
 function injectKeyName(key: InjectKey): string {
-    // deno-lint-ignore no-explicit-any
-    return (key as any).name; // constructors/types
+    return key.name; // constructors/types
 }
 function withInjectionStack(msg: string): string {
     const trace = InjectionStack.trace();

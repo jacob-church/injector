@@ -127,11 +127,11 @@ export class Injector {
     private static buildingProvide: Built | undefined = undefined;
     // MEMBERS ///////////////////////////////////////////////////////////////
     // the provides stored in this injector
-    private provides = new Map<InjectKey, Provided>();
+    private readonly provides = new Map<InjectKey, Provided>();
     // super fast get of objects already built by this injector
-    private cache = new Map<InjectKey, Built>();
+    private readonly cache = new Map<InjectKey, Built>();
     // a quick reference for comparing where two injectors sit within the same hierarchy
-    private rank: number;
+    private readonly rank: number;
     // PUBLIC ////////////////////////////////////////////////////////////////
     constructor(provides: Provide[] = [], private parent?: Injector) {
         provides.map((p) => this.setLocalProvide(p));
@@ -189,6 +189,7 @@ export class Injector {
                     Injector.buildingProvide.holder,
                 );
             }
+            // cast since the key/value always match types when set.
             return built.value as T;
         } finally {
             InjectionStack.pop();
@@ -316,7 +317,8 @@ export class Injector {
      * Given a Provided, takes the necessary steps to finalize that provide and cache it appropriately
      */
     private buildAndStore<T>(provide: Provided<T>): Built<T> {
-        const built = { ...provide, deps: [] } as Built<T>;
+        // create an empty value to be filled in below.
+        const built: Built<T> = { ...provide, deps: [], value: undefined as T };
         const prevBuildingProvide = Injector.buildingProvide;
         Injector.buildingProvide = built;
         try {
@@ -324,8 +326,10 @@ export class Injector {
         } catch (e) {
             if (e instanceof InjectorError) {
                 throw e; // let these bubble up; we only wrap the error in a stack trace once
+            } else if (e instanceof Error) {
+                throw new InjectError(e);
             } else {
-                throw new InjectError(e as Error);
+                throw e;
             }
         } finally {
             Injector.buildingProvide = prevBuildingProvide;
