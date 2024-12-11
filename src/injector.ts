@@ -127,11 +127,11 @@ export class Injector {
     private static buildingProvide: Built | undefined = undefined;
     // MEMBERS ///////////////////////////////////////////////////////////////
     // the provides stored in this injector
-    private provides = new Map<InjectKey, Provided>();
+    private readonly provides = new Map<InjectKey, Provided>();
     // super fast get of objects already built by this injector
-    private cache = new Map<InjectKey, Built>();
+    private readonly cache = new Map<InjectKey, Built>();
     // a quick reference for comparing where two injectors sit within the same hierarchy
-    private rank: number;
+    private readonly rank: number;
     // PUBLIC ////////////////////////////////////////////////////////////////
     constructor(provides: Provide[] = [], private parent?: Injector) {
         provides.map((p) => this.setLocalProvide(p));
@@ -189,6 +189,7 @@ export class Injector {
                     Injector.buildingProvide.holder,
                 );
             }
+            // cast since the key/value always match types when set.
             return built.value as T;
         } finally {
             InjectionStack.pop();
