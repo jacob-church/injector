@@ -1,8 +1,7 @@
 import type { DummyFactory } from "../symbols/dummyfactory.ts";
 import type { InjectKey } from "./injectkey.ts";
 
-// deno-lint-ignore no-explicit-any
-export type InjectionContext<T = any> = <Narrowed extends T>(
+export type InjectionContext<T = unknown> = <Narrowed extends T>(
     fn: () => Narrowed,
 ) => Narrowed;
 
