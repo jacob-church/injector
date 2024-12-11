@@ -316,7 +316,8 @@ export class Injector {
      * Given a Provided, takes the necessary steps to finalize that provide and cache it appropriately
      */
     private buildAndStore<T>(provide: Provided<T>): Built<T> {
-        const built = { ...provide, deps: [] } as Built<T>;
+        // create an empty value to be filled in below.
+        const built: Built<T> = { ...provide, deps: [], value: undefined as T };
         const prevBuildingProvide = Injector.buildingProvide;
         Injector.buildingProvide = built;
         try {
@@ -324,8 +325,10 @@ export class Injector {
         } catch (e) {
             if (e instanceof InjectorError) {
                 throw e; // let these bubble up; we only wrap the error in a stack trace once
+            } else if (e instanceof Error) {
+                throw new InjectError(e);
             } else {
-                throw new InjectError(e as Error);
+                throw e;
             }
         } finally {
             Injector.buildingProvide = prevBuildingProvide;
