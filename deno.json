@@ -1,6 +1,6 @@
 {
     "name": "@cjc/injector",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "fmt": {
         "indentWidth": 4,
         "exclude": [
@@ -13,7 +13,9 @@
         ]
     },
     "lint": {
-        "exclude": ["./edu/*"]
+        "exclude": [
+            "./edu/*"
+        ]
     },
     "publish": {
         "include": [
@@ -22,7 +24,10 @@
             "./src/**/*.ts",
             "./index.ts"
         ],
-        "exclude": ["./edu", "./src/test/*"]
+        "exclude": [
+            "./edu",
+            "./src/test/*"
+        ]
     },
     "exports": "./index.ts"
 }
