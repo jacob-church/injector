@@ -1,5 +1,5 @@
 import type { InjectKey, NoArgsCtor } from "./types/injectkey.ts";
-import { inject } from "./inject.ts";
+import { internalInject } from "./inject.ts";
 import type { Provide } from "./types/provide.ts";
 
 /**
@@ -83,7 +83,7 @@ export class Provider<T> {
     public useExisting(key: InjectKey<T>): Provide<T> {
         return {
             key: this.key,
-            factory: () => inject(key),
+            factory: () => internalInject(key),
         };
     }
     /**
@@ -98,7 +98,7 @@ export class Provider<T> {
     public useExistingFactory(existingFactory: () => InjectKey<T>): Provide<T> {
         return {
             key: this.key,
-            factory: () => inject(existingFactory()),
+            factory: () => internalInject(existingFactory()),
         };
     }
 }

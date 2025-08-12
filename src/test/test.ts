@@ -1,4 +1,4 @@
-import { inject, injectOptional } from "../inject.ts";
+import { inject, injectOptional, injectOrThrow } from "../inject.ts";
 import {
     CyclicDependencyError,
     MissingProvideError,
@@ -254,7 +254,7 @@ Deno.test("inject errors", async (test) => {
     await test.step("cycle detection error", () => {
         const K = key<A>("K");
         class C {
-            public k = inject(K);
+            public k = injectOrThrow(K);
         }
         class B {
             public c = inject(C);
@@ -276,7 +276,7 @@ Deno.test("inject errors", async (test) => {
     await test.step("inject errors include injection stack trace", () => {
         const Key = key<number>("Key");
         class C {
-            public readonly k = inject(Key);
+            public readonly k = injectOrThrow(Key);
         }
         class B {
             public readonly c = inject(C);
@@ -333,6 +333,24 @@ Deno.test("injectOptional", async (test) => {
             caught = true;
         }
         assert(caught, "should have thrown error");
+    });
+});
+
+Deno.test("injectOrThrow", async (test) => {
+    await test.step("throws error when dependency isn't provided", () => {
+        let caught = false;
+        const K = key<number>("K");
+        class A {
+            public k = injectOrThrow(K);
+        }
+        try {
+            newInjector().get(A);
+        } catch (e) {
+            if (e instanceof MissingProvideError) {
+                caught = true;
+            }
+        }
+        assert(caught, "should have thrown an error");
     });
 });
 
@@ -512,7 +530,7 @@ Deno.test("dependency recording", async (test) => {
         }
         class C_ extends C {}
         class D {
-            public e = inject(EKey);
+            public e = injectOrThrow(EKey);
         }
         const EKey = key<E>("EKey");
         class E {}
@@ -580,7 +598,7 @@ Deno.test("abstract classes can't be used as keys without NoImplicitInject", () 
     }
 
     class A {
-        public base = inject(Base);
+        public base = injectOrThrow(Base);
     }
 
     const p = newInjector();
