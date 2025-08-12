@@ -1,4 +1,4 @@
-import type { InjectKey, NoArgsCtor } from "./types/injectkey.ts";
+import type { ImplicitlyAvailable, InjectKey } from "./types/injectkey.ts";
 import { internalInject } from "./inject.ts";
 import type { Provide } from "./types/provide.ts";
 
@@ -40,7 +40,7 @@ export function provide<T>(key: InjectKey<T>): Provider<T> {
  * child.get(A); // stored in child, not parent
  * ```
  */
-export function explicitly<T>(key: NoArgsCtor<T>): Provide<T> {
+export function explicitly<T>(key: ImplicitlyAvailable<T>): Provide<T> {
     return {
         key,
         factory: () => new key(),
