@@ -302,17 +302,23 @@ Deno.test("inject errors", async (test) => {
 });
 
 Deno.test("injectOptional", async (test) => {
-    const K = key<number>("K");
+    const K1 = key<number>("K1");
+    const K2 = key<number>("K2");
     class A {
-        public k = injectOptional(K);
+        public k1 = injectOptional(K1);
+        public k2 = injectOptional(K2);
     }
     await test.step("simple usage", () => {
-        const a = newInjector().get(A);
+        const a = newInjector([provide(K2).useValue(0)]).get(A);
 
-        assert(a.k === undefined, "shouldn't fail when using injectOptional");
+        assert(a.k1 === undefined, "shouldn't fail when using injectOptional");
+        assert(
+            a.k2 === 0,
+            "should return an optional dependency when it is provided",
+        );
     });
 
-    await test.step("shouldn't consume unexpected errors", () => {
+    await test.step("shouldn't consume errors", () => {
         let caught = false;
         class B {
             public a = inject(A);

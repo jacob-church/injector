@@ -65,11 +65,16 @@ export class Injector {
      */
     public static inject<T>(key: InjectKey<T>): T {
         if (!Injector.context) {
-            throw new Error(
-                InjectionContextError,
-            );
+            throw new Error(InjectionContextError);
         }
         return Injector.context.getInContext(key);
+    }
+
+    public static has(key: InjectKey): boolean {
+        if (!Injector.context) {
+            throw new Error(InjectionContextError);
+        }
+        return Injector.context.has(key);
     }
     /**
      * see `inject`
@@ -151,6 +156,15 @@ export class Injector {
         } finally {
             Injector.context = prevInjector;
         }
+    }
+
+    /**
+     * Given a key
+     * @returns true if the key is available in this injector
+     */
+    public has(key: InjectKey): boolean {
+        return this.cache.has(key) || this.provides.has(key) ||
+            !!(this.parent?.has(key));
     }
 
     /**
