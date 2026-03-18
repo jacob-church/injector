@@ -10,7 +10,7 @@ import {
 } from "../injectioncontext.ts";
 import { newInjector } from "../injector.ts";
 import { key } from "../providekey.ts";
-import { explicitly, provide } from "../provider.ts";
+import { explicitly, provide, provideMulti } from "../provider.ts";
 import { NoImplicitInject } from "../symbols/noimplicitinject.ts";
 import { assert } from "./lib.ts";
 import { DummyFactory } from "../symbols/dummyfactory.ts";
@@ -648,4 +648,63 @@ Deno.test("allow chains of useExisting on abstract classes", () => {
         caught = true;
     }
     assert(!caught, "should not have thrown an error");
+});
+
+Deno.test("multi inject", async (test) => {
+    await test.step("basic multi provide and inject", () => {
+        const MultiKey = key<string[]>("MultiKey");
+        const injector = newInjector([
+            provideMulti(MultiKey).useValue("a"),
+            provideMulti(MultiKey).useValue("b"),
+            provideMulti(MultiKey).useValue("c"),
+        ]);
+        const values = injector.get(MultiKey);
+        assert(
+            values.length === 3 &&
+                values.includes("a") &&
+                values.includes("b") &&
+                values.includes("c"),
+            "should correctly inject multiple values",
+        );
+    });
+    await test.step("multi provides spread through hierarchy", () => {
+        const MultiKey = key<string[]>("MultiKey");
+        const gp = newInjector([
+            provideMulti(MultiKey).useValue("a"),
+        ]);
+        const p = newInjector([
+            provideMulti(MultiKey).useValue("b"),
+            provideMulti(MultiKey).useValue("c"),
+        ], gp);
+        const c = newInjector([
+            provideMulti(MultiKey).useValue("d"),
+        ], p);
+        const values = c.get(MultiKey);
+        assert(
+            values.length === 4 &&
+                values.includes("a") &&
+                values.includes("b") &&
+                values.includes("c") &&
+                values.includes("d"),
+            "should correctly inject multiple values from across the injector hierarchy",
+        );
+    });
+    await test.step("multi provides honor different kinds of provides", () => {
+        const MultiKey = key<string[]>("MultiKey");
+        const CKey = key<string>("CKey");
+        const injector = newInjector([
+            provideMulti(MultiKey).useValue("a"),
+            provideMulti(MultiKey).use(() => "b"),
+            provideMulti(MultiKey).useExisting(CKey),
+            provide(CKey).useValue("c"),
+        ]);
+        const values = injector.get(MultiKey);
+        assert(
+            values.length === 3 &&
+                values.includes("a") &&
+                values.includes("b") &&
+                values.includes("c"),
+            "should correctly inject multiple values from different kinds of provides",
+        );
+    });
 });
