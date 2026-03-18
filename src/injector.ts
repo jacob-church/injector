@@ -1,4 +1,4 @@
-import type { Ctor, InjectKey } from "./types/injectkey.ts";
+import type { Ctor, InjectKey, ProviderRequired } from "./types/injectkey.ts";
 import type { Provide } from "./types/provide.ts";
 import {
     InjectError,
@@ -122,6 +122,7 @@ export class Injector {
             }
         };
     }
+
     /**
      * @returns the childmost injector (the injector of highest rank)
      */
@@ -139,7 +140,19 @@ export class Injector {
     private readonly rank: number;
     // PUBLIC ////////////////////////////////////////////////////////////////
     constructor(provides: Provide[] = [], private parent?: Injector) {
-        provides.map((p) => this.setLocalProvide(p));
+        const multiProvides = new Map<ProviderRequired, Provide[]>();
+        for (const provide of provides) {
+            if (!provide.multi) {
+                this.setLocalProvide(provide);
+                continue;
+            }
+
+            if (!multiProvides.has(provide.key)) {
+                multiProvides.set(provide.key, []);
+            }
+            multiProvides.get(provide.key)?.push(provide);
+        }
+        this.createMultiProvides(multiProvides);
         this.rank = this.parent ? this.parent.rank + 1 : 0;
     }
 
@@ -187,11 +200,33 @@ export class Injector {
             holder: this,
         });
     }
+
+    private createMultiProvides(
+        multiProvides: Map<ProviderRequired, Provide[]>,
+    ): void {
+        for (const [multiKey, multiProvideList] of multiProvides) {
+            this.setLocalProvide({
+                key: multiKey,
+                factory: () => {
+                    const parentArray = this.parent?.getInContext(
+                        multiKey,
+                        { useInjectionStack: false }, // prevents false cycle detection
+                    ) as unknown[] ??
+                        [];
+                    const array = multiProvideList.map((p) => p.factory());
+                    return parentArray.concat(...array);
+                },
+            });
+        }
+    }
     /**
      * The actual `get` implementation; assumes an active injection context
      */
-    private getInContext<T>(key: InjectKey<T>): T {
-        InjectionStack.push(key);
+    private getInContext<T>(
+        key: InjectKey<T>,
+        { useInjectionStack = true }: { useInjectionStack?: boolean } = {},
+    ): T {
+        useInjectionStack && InjectionStack.push(key);
         try {
             const built = this.cache.get(key) ?? this.getBuilt(key);
             if (Injector.buildingProvide) {
@@ -206,7 +241,7 @@ export class Injector {
             // cast since the key/value always match types when set.
             return built.value as T;
         } finally {
-            InjectionStack.pop();
+            useInjectionStack && InjectionStack.pop();
         }
     }
 

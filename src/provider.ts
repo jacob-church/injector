@@ -1,6 +1,11 @@
-import type { ImplicitlyAvailable, InjectKey } from "./types/injectkey.ts";
+import type {
+    ImplicitlyAvailable,
+    InjectKey,
+    ProviderRequired,
+} from "./types/injectkey.ts";
 import { internalInject } from "./inject.ts";
 import type { Provide } from "./types/provide.ts";
+import { ProvideKey } from "./providekey.ts";
 
 /**
  * Quality of life function for generating `Provide` objects to configure an
@@ -24,6 +29,21 @@ import type { Provide } from "./types/provide.ts";
  */
 export function provide<T>(key: InjectKey<T>): Provider<T> {
     return new Provider(key);
+}
+
+export function provideMulti<T>(key: ProvideKey<T[]>): Provider<T> {
+    const provider = new Provider(key as ProvideKey<T>);
+    const handler = {
+        get: (obj: Provider<T>, prop: keyof Provider<T>) => {
+            return function (arg: any) {
+                return {
+                    ...obj[prop](arg),
+                    multi: true,
+                };
+            };
+        },
+    };
+    return new Proxy(provider, handler);
 }
 
 /**
